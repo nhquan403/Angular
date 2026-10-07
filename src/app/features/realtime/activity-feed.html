@@ -1,0 +1,42 @@
+<section class="card stack" aria-labelledby="feed-title">
+  <div class="row between">
+    <h2 id="feed-title">Hoạt động trực tiếp</h2>
+    @if (realtime.feed().length > 0) {
+      <button type="button" class="btn link small" (click)="realtime.clearFeed()">Xóa</button>
+    }
+  </div>
+
+  @if (realtime.lastError(); as message) {
+    <p class="banner warn small" role="status">{{ message }}</p>
+  }
+
+  @if (realtime.feed().length === 0) {
+    <p class="muted small">
+      Chưa có sự kiện nào. Hãy thêm, sửa hoặc xóa một todo (ở tab này hoặc tab khác) để thấy sự kiện đến theo thời gian thực.
+    </p>
+  } @else {
+    <ul class="list">
+      @for (item of realtime.feed(); track item.id) {
+        <li class="row">
+          <span aria-hidden="true">{{ icon[item.event.type] }}</span>
+          <div class="grow">
+            <div class="small">
+              <strong>{{ label[item.event.type] }}</strong>
+              @if (auth.isAdmin() && item.event.ownerId !== auth.user()?.id) {
+                <span class="badge">user #{{ item.event.ownerId }}</span>
+              }
+            </div>
+            <div class="truncate">
+              @if (item.event.type === 'DELETED') {
+                {{ item.event.title }}
+              } @else {
+                <a [routerLink]="['/todos', item.event.todoId]">{{ item.event.title }}</a>
+              }
+            </div>
+          </div>
+          <time class="muted small" [attr.datetime]="item.event.occurredAt">{{ item.receivedAt | date: 'HH:mm:ss' }}</time>
+        </li>
+      }
+    </ul>
+  }
+</section>

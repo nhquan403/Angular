@@ -1,0 +1,7 @@
+.bar { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+.bar-inner { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding-block: .6rem; }
+.brand { font-weight: 800; font-size: 1.1rem; text-decoration: none; color: var(--text); }
+nav a { text-decoration: none; color: var(--muted); font-weight: 600; padding: .25rem .5rem; border-radius: 6px; }
+nav a.active { color: var(--text); background: var(--surface-2); }
+.who { max-width: 14rem; font-size: .9rem; }
+.foot { padding-block: 1.5rem; }

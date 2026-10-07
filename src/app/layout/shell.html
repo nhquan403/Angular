@@ -1,0 +1,29 @@
+<header class="bar">
+  <div class="page bar-inner">
+    <a routerLink="/todos" class="brand">✔ Todo</a>
+
+    <nav class="row" aria-label="Điều hướng chính">
+      <a routerLink="/todos" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">Todo</a>
+      @if (auth.isAdmin()) {
+        <a routerLink="/admin/users" routerLinkActive="active">Người dùng</a>
+      }
+    </nav>
+
+    <div class="row right">
+      <app-realtime-badge />
+      @if (auth.user(); as user) {
+        <span class="who truncate" [title]="user.email">{{ user.email }}</span>
+        <span class="badge" [class.admin]="user.role === 'ADMIN'">{{ user.role }}</span>
+      }
+      <button type="button" class="btn small" (click)="logout()">Đăng xuất</button>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <router-outlet />
+</main>
+
+<footer class="page muted small foot">
+  API: <a [href]="swaggerUrl" target="_blank" rel="noopener">Swagger UI</a>
+</footer>

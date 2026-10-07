@@ -1,0 +1,59 @@
+<div class="stack">
+  <h1>Quản lý người dùng</h1>
+  <p class="banner small">
+    Đổi role sẽ thu hồi mọi refresh token của người đó: họ phải đăng nhập lại để nhận role mới
+    (access token cũ vẫn mang role cũ tới khi hết hạn, tối đa 15 phút).
+  </p>
+
+  @if (loadError(); as message) {
+    <p class="banner error" role="alert">{{ message }}</p>
+    <button type="button" class="btn" style="align-self: flex-start" (click)="reload()">Thử lại</button>
+  }
+
+  @if (page(); as current) {
+    <section class="card" [attr.aria-busy]="loading()">
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>ID</th><th>Email</th><th>Role</th><th>Ngày tạo</th></tr>
+          </thead>
+          <tbody>
+            @for (user of current.content; track user.id) {
+              <tr>
+                <td>{{ user.id }}</td>
+                <td>
+                  {{ user.email }}
+                  @if (isSelf(user)) {
+                    <span class="badge">bạn</span>
+                  }
+                </td>
+                <td>
+                  <label class="sr-only" [attr.for]="'role-' + user.id">Role của {{ user.email }}</label>
+                  <select [id]="'role-' + user.id" class="input" [value]="user.role"
+                          [disabled]="isSelf(user) || changing() === user.id"
+                          [title]="isSelf(user) ? 'Không thể tự đổi role của chính mình' : ''"
+                          (change)="changeRole(user, $event)">
+                    @for (role of roles; track role) {
+                      <option [value]="role" [selected]="role === user.role">{{ role }}</option>
+                    }
+                  </select>
+                </td>
+                <td>{{ user.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="row between" style="margin-top: .75rem">
+        <span class="muted small">{{ current.totalElements }} người dùng · trang {{ current.page + 1 }}/{{ current.totalPages }}</span>
+        <div class="row">
+          <button type="button" class="btn small" [disabled]="current.page === 0" (click)="goTo(current.page - 1)">← Trước</button>
+          <button type="button" class="btn small" [disabled]="current.last" (click)="goTo(current.page + 1)">Sau →</button>
+        </div>
+      </div>
+    </section>
+  } @else if (loading()) {
+    <p class="muted">Đang tải...</p>
+  }
+</div>

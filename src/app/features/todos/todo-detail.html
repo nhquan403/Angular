@@ -1,0 +1,93 @@
+<div class="stack" style="max-width: 720px; margin: 0 auto">
+  <a routerLink="/todos">← Danh sách todo</a>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="muted">Đang tải...</p>
+    }
+    @case ('notFound') {
+      <div class="card stack">
+        <h1>Không tìm thấy todo</h1>
+        <p class="muted">Todo này không tồn tại hoặc không thuộc về bạn.</p>
+      </div>
+    }
+    @case ('deleted') {
+      <div class="card stack">
+        <h1>Todo đã bị xóa</h1>
+        <p class="muted">Todo này vừa bị xóa (ở tab khác hoặc bởi người khác).</p>
+        <a routerLink="/todos" class="btn primary" style="align-self: flex-start">Về danh sách</a>
+      </div>
+    }
+    @case ('error') {
+      <div class="card stack">
+        <p class="banner error" role="alert">{{ loadError() }}</p>
+        <button type="button" class="btn" style="align-self: flex-start" (click)="retry()">Thử lại</button>
+      </div>
+    }
+    @case ('ready') {
+      @if (todo(); as current) {
+        @if (remoteVersion(); as remote) {
+          <div class="banner warn stack" role="alert">
+            <strong>Todo này vừa được thay đổi ở nơi khác.</strong>
+            <span class="small">Bản mới: "{{ remote.title }}" (phiên bản {{ remote.version }}). Bạn đang giữ phiên bản {{ current.version }} và có thay đổi chưa lưu.</span>
+            <span class="row">
+              <button type="button" class="btn small" (click)="useRemote()">Lấy bản mới (bỏ thay đổi của tôi)</button>
+              <button type="button" class="btn small" (click)="keepMine()">Giữ thay đổi của tôi</button>
+            </span>
+          </div>
+        }
+
+        <form class="card stack" [formGroup]="form" (ngSubmit)="save()" novalidate>
+          <div class="row between">
+            <h1>Chi tiết todo #{{ current.id }}</h1>
+            <span class="badge" [class.done]="current.completed">{{ current.completed ? 'Đã xong' : 'Đang làm' }}</span>
+          </div>
+
+          <div class="field">
+            <label for="title">Tiêu đề</label>
+            <input id="title" class="input" formControlName="title" [attr.maxlength]="titleMax"
+                   [class.invalid]="(form.controls.title.invalid && form.controls.title.touched) || serverErrors()['title']" />
+            @if (serverErrors()['title']; as message) {
+              <p class="error-text">{{ message }}</p>
+            } @else if (form.controls.title.invalid && form.controls.title.touched) {
+              <p class="error-text">Nhập tiêu đề (tối đa {{ titleMax }} ký tự)</p>
+            }
+          </div>
+
+          <div class="field">
+            <label for="description">Ghi chú</label>
+            <textarea id="description" class="input" formControlName="description" [attr.maxlength]="descriptionMax"
+                      [class.invalid]="form.controls.description.invalid || serverErrors()['description']"></textarea>
+            <p class="hint">{{ form.controls.description.value.length }}/{{ descriptionMax }}</p>
+            @if (serverErrors()['description']; as message) {
+              <p class="error-text">{{ message }}</p>
+            }
+          </div>
+
+          <p class="muted small">
+            Tạo {{ current.createdAt | date: 'dd/MM/yyyy HH:mm:ss' }} · Sửa {{ current.updatedAt | date: 'dd/MM/yyyy HH:mm:ss' }} · Phiên bản {{ current.version }}
+          </p>
+
+          <div class="row">
+            <button type="submit" class="btn primary" [disabled]="saving() || form.pristine">
+              {{ saving() ? 'Đang lưu...' : 'Lưu thay đổi' }}
+            </button>
+            <button type="button" class="btn" [disabled]="busy()" (click)="toggle()">
+              {{ current.completed ? 'Mở lại' : 'Đánh dấu hoàn thành' }}
+            </button>
+
+            @if (confirmingDelete()) {
+              <span class="row right">
+                <span class="small">Xóa todo này?</span>
+                <button type="button" class="btn danger solid small" [disabled]="busy()" (click)="confirmDelete()">Xóa</button>
+                <button type="button" class="btn small" (click)="cancelDelete()">Hủy</button>
+              </span>
+            } @else {
+              <button type="button" class="btn danger right" [disabled]="busy()" (click)="askDelete()">Xóa</button>
+            }
+          </div>
+        </form>
+      }
+    }
+  }
+</div>

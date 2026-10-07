@@ -1,0 +1,133 @@
+<div class="cols">
+  <div class="stack">
+    <h1>{{ auth.isAdmin() ? 'Tất cả todo' : 'Todo của tôi' }}</h1>
+
+    @if (auth.isAdmin()) {
+      <p class="banner small">Bạn là ADMIN: danh sách gồm todo của mọi người dùng.</p>
+    }
+
+    <!-- Thêm nhanh -->
+    <form class="card stack" [formGroup]="form" (ngSubmit)="create()" novalidate>
+      <div class="field">
+        <label for="new-title">Việc cần làm</label>
+        <input id="new-title" class="input" formControlName="title" [attr.maxlength]="titleMax" placeholder="Ví dụ: Học Spring Security"
+               [class.invalid]="(form.controls.title.invalid && form.controls.title.touched) || serverErrors()['title']" />
+        @if (serverErrors()['title']; as message) {
+          <p class="error-text">{{ message }}</p>
+        } @else if (form.controls.title.invalid && form.controls.title.touched) {
+          <p class="error-text">Nhập tiêu đề (tối đa {{ titleMax }} ký tự)</p>
+        }
+      </div>
+      <div class="field">
+        <label for="new-description">Ghi chú (không bắt buộc)</label>
+        <textarea id="new-description" class="input" formControlName="description" [attr.maxlength]="descriptionMax"
+                  [class.invalid]="form.controls.description.invalid || serverErrors()['description']"></textarea>
+        @if (serverErrors()['description']; as message) {
+          <p class="error-text">{{ message }}</p>
+        }
+      </div>
+      <button type="submit" class="btn primary" style="align-self: flex-start" [disabled]="creating()">
+        {{ creating() ? 'Đang thêm...' : 'Thêm todo' }}
+      </button>
+    </form>
+
+    <!-- Bộ lọc, sắp xếp -->
+    <div class="row">
+      <div class="chips" role="group" aria-label="Lọc theo trạng thái">
+        <button type="button" class="chip" [attr.aria-pressed]="query().completed === null" (click)="filterBy(null)">Tất cả</button>
+        <button type="button" class="chip" [attr.aria-pressed]="query().completed === false" (click)="filterBy(false)">Đang làm</button>
+        <button type="button" class="chip" [attr.aria-pressed]="query().completed === true" (click)="filterBy(true)">Đã xong</button>
+      </div>
+
+      <div class="row right">
+        <label class="sr-only" for="sort-by">Sắp xếp theo</label>
+        <select id="sort-by" class="input" (change)="sortBy($event)">
+          @for (field of sortFields; track field) {
+            <option [value]="field" [selected]="field === query().sortBy">{{ sortLabel[field] }}</option>
+          }
+        </select>
+        <button type="button" class="btn small" (click)="toggleDirection()"
+                [attr.aria-label]="query().direction === 'desc' ? 'Đang giảm dần, bấm để tăng dần' : 'Đang tăng dần, bấm để giảm dần'">
+          {{ query().direction === 'desc' ? '↓ Giảm dần' : '↑ Tăng dần' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Danh sách -->
+    <section class="card" aria-live="polite" [attr.aria-busy]="loading()">
+      @if (loadError(); as message) {
+        @if (page() === null) {
+          <div class="stack">
+            <p class="banner error" role="alert">{{ message }}</p>
+            <button type="button" class="btn" style="align-self: flex-start" (click)="reload()">Thử lại</button>
+          </div>
+        }
+      }
+
+      @if (page(); as current) {
+        @if (current.content.length === 0) {
+          <p class="muted">
+            {{ query().completed === null ? 'Chưa có todo nào. Thêm todo đầu tiên ở khung phía trên.' : 'Không có todo nào khớp bộ lọc.' }}
+          </p>
+        } @else {
+          <ul class="list">
+            @for (todo of current.content; track todo.id) {
+              <li [class.flash]="flashed().has(todo.id)">
+                <div class="row nowrap">
+                  <input type="checkbox" [checked]="todo.completed" [disabled]="isBusy(todo.id)"
+                         (change)="toggle(todo)" [attr.aria-label]="(todo.completed ? 'Mở lại: ' : 'Hoàn thành: ') + todo.title" />
+                  <div class="grow">
+                    <a class="todo-title" [class.done]="todo.completed" [routerLink]="['/todos', todo.id]">{{ todo.title }}</a>
+                    @if (todo.description) {
+                      <div class="muted small truncate">{{ todo.description }}</div>
+                    }
+                    <div class="muted small">Tạo {{ todo.createdAt | date: 'dd/MM/yyyy HH:mm' }}</div>
+                  </div>
+
+                  <span class="row actions">
+                    @if (todo.completed) {
+                      <span class="badge done">Xong</span>
+                    }
+
+                    @if (confirmingDelete() === todo.id) {
+                      <span class="row">
+                        <span class="small">Xóa?</span>
+                        <button type="button" class="btn danger solid small" (click)="confirmDelete(todo)">Xóa</button>
+                        <button type="button" class="btn small" (click)="cancelDelete()">Hủy</button>
+                      </span>
+                    } @else {
+                      <a class="btn small" [routerLink]="['/todos', todo.id]">Sửa</a>
+                      <button type="button" class="btn danger small" [disabled]="isBusy(todo.id)" (click)="askDelete(todo)"
+                              [attr.aria-label]="'Xóa ' + todo.title">Xóa</button>
+                    }
+                  </span>
+                </div>
+              </li>
+            }
+          </ul>
+
+          <!-- Phân trang -->
+          <div class="row between" style="margin-top: .75rem">
+            <span class="muted small">
+              {{ current.totalElements }} todo · trang {{ current.page + 1 }}/{{ current.totalPages }}
+            </span>
+            <div class="row">
+              <label class="sr-only" for="page-size">Số dòng mỗi trang</label>
+              <select id="page-size" class="input" (change)="pageSize($event)">
+                @for (size of pageSizes; track size) {
+                  <option [value]="size" [selected]="size === query().size">{{ size }} / trang</option>
+                }
+              </select>
+              <button type="button" class="btn small" [disabled]="current.page === 0" (click)="go({ page: current.page - 1 })">← Trước</button>
+              <button type="button" class="btn small" [disabled]="current.last" (click)="go({ page: current.page + 1 })">Sau →</button>
+            </div>
+          </div>
+        }
+      } @else if (loading()) {
+        <p class="muted">Đang tải...</p>
+      }
+    </section>
+  </div>
+
+  <app-activity-feed />
+</div>
