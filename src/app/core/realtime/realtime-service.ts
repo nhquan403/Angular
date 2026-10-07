@@ -120,8 +120,7 @@ export class RealtimeService {
     this.http.post<TicketResponse>(`${this.apiBase}/api/realtime/ticket`, null).subscribe({
       next: ({ ticket }) => {
         if (gen === this.generation) {
-          this.connection =
-            this.transport() === 'sse' ? this.openSse(gen, ticket) : this.openWebSocket(gen, ticket);
+          this.connection = this.transport() === 'sse' ? this.openSse(gen, ticket) : this.openWebSocket(gen, ticket);
         }
       },
       error: (error: unknown) => {

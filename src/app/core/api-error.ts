@@ -56,14 +56,11 @@ export function toApiError(response: HttpErrorResponse): ApiError {
     }
     if (problem.errors !== null && typeof problem.errors === 'object') {
       fieldErrors = Object.fromEntries(
-        Object.entries(problem.errors).filter(
-          (entry): entry is [string, string] => typeof entry[1] === 'string',
-        ),
+        Object.entries(problem.errors).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
       );
     }
   }
 
-  const message =
-    detail ?? FALLBACK_MESSAGES[response.status] ?? `Lỗi không xác định (HTTP ${response.status})`;
+  const message = detail ?? FALLBACK_MESSAGES[response.status] ?? `Lỗi không xác định (HTTP ${response.status})`;
   return new ApiError(response.status, message, fieldErrors, response.headers?.get(REQUEST_ID_HEADER) ?? null);
 }
