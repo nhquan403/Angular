@@ -1,6 +1,6 @@
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { DatePipe } from '@angular/common';
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, effect, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -26,6 +26,7 @@ import { Alert } from '../../shared/alert';
 import { EmptyState } from '../../shared/empty-state';
 import { applyServerErrors } from '../../shared/form-errors';
 import { ActivityFeed } from '../realtime/activity-feed';
+import { TodoDraft, TodoDraftBridge } from './todo-draft-bridge';
 import { notBlank } from './validators';
 import { TodoApi } from './todo-api';
 import { DEFAULT_QUERY, PAGE_SIZES, parseTodoQuery, toQueryParams } from './todo-query';
@@ -74,6 +75,7 @@ export class TodoList {
   private readonly toast = inject(ToastService);
   private readonly realtime = inject(RealtimeService);
   private readonly confirm = inject(ConfirmService);
+  private readonly drafts = inject(TodoDraftBridge);
   private readonly fb = inject(FormBuilder).nonNullable;
   protected readonly auth = inject(AuthStore);
 
@@ -99,6 +101,9 @@ export class TodoList {
   protected readonly creating = signal(false);
   /** Khung "Ghi chú" của form thêm nhanh: thu gọn mặc định cho gọn mắt. */
   protected readonly showDescription = signal(false);
+  /** Vừa được điền gợi ý từ trợ lý: làm nổi khung form vài giây để người dùng thấy. */
+  protected readonly draftApplied = signal(false);
+  private readonly titleInput = viewChild<ElementRef<HTMLInputElement>>('titleInput');
 
   /** id các todo đang chờ BE trả lời (khóa nút để không bấm đúp). */
   protected readonly busy = signal<ReadonlySet<number>>(new Set());
@@ -123,7 +128,41 @@ export class TodoList {
     // BE không phát lại sự kiện đã lỡ, nên sau khi kết nối lại phải tải lại để bắt kịp.
     this.realtime.resync$.pipe(takeUntilDestroyed()).subscribe(() => this.reload$.next());
 
-    inject(DestroyRef).onDestroy(() => this.flashTimers.forEach(clearTimeout));
+    // Cho trợ lý biết người dùng đang gõ gì trong form tạo (làm ngữ cảnh khi hỏi).
+    this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(({ title = '', description = '' }) => {
+      const hasText = title.trim() !== '' || description.trim() !== '';
+      this.drafts.draft.set(hasText ? { title, description: description.trim() || null } : null);
+    });
+    // Trợ lý (hoặc nơi khác) gửi một bản nháp: điền vào form. Đọc xong là xóa để không điền lại lần nữa.
+    effect(() => {
+      if (this.drafts.pending() !== null) {
+        const draft = this.drafts.consume();
+        if (draft !== null) {
+          this.applyDraft(draft);
+        }
+      }
+    });
+
+    inject(DestroyRef).onDestroy(() => {
+      this.flashTimers.forEach(clearTimeout);
+      this.drafts.draft.set(null);
+    });
+  }
+
+  /** Điền bản nháp vào form tạo. Không tự gửi: người dùng xem lại rồi bấm "Thêm". */
+  private applyDraft(draft: TodoDraft): void {
+    this.form.setValue({ title: draft.title, description: draft.description ?? '' });
+    this.form.markAsDirty();
+    this.showDescription.set(draft.description !== null);
+    this.draftApplied.set(true);
+    const timer = setTimeout(() => {
+      this.flashTimers.delete(timer);
+      this.draftApplied.set(false);
+    }, 2500);
+    this.flashTimers.add(timer);
+    // Chờ form vẽ xong (ô ghi chú có thể vừa hiện ra) rồi đưa con trỏ vào ô tiêu đề.
+    setTimeout(() => this.titleInput()?.nativeElement.focus({ preventScroll: false }));
+    this.toast.show('info', 'Đã điền gợi ý vào form. Kiểm tra lại rồi bấm "Thêm".');
   }
 
   // ---------- tải dữ liệu ----------

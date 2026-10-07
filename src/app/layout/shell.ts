@@ -21,6 +21,8 @@ import { filter, map } from 'rxjs';
 import { AuthStore } from '../core/auth/auth-store';
 import { API_BASE_URL } from '../core/config';
 import { RealtimeService, RealtimeTransport } from '../core/realtime/realtime-service';
+import { environment } from '../../environments/environment';
+import { AssistantWidget } from '../features/assistant/assistant-widget';
 import { RealtimeBadge } from './realtime-badge';
 import { ThemeToggle } from './theme-toggle';
 
@@ -45,6 +47,7 @@ import { ThemeToggle } from './theme-toggle';
     MatProgressBarModule,
     RealtimeBadge,
     ThemeToggle,
+    AssistantWidget,
   ],
   templateUrl: './shell.html',
   host: { class: 'flex min-h-dvh flex-col' },
@@ -62,6 +65,7 @@ export class Shell {
   protected readonly auth = inject(AuthStore);
   protected readonly swaggerUrl = `${inject(API_BASE_URL)}/swagger-ui.html`;
   protected readonly year = new Date().getFullYear();
+  protected readonly assistantEnabled = environment.assistantEnabled;
   protected readonly realtime = inject(RealtimeService);
   protected readonly transports: readonly { value: RealtimeTransport; label: string }[] = [
     { value: 'sse', label: 'SSE' },

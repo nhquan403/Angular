@@ -23,7 +23,9 @@
     <!-- Thêm nhanh -->
     <form
       #createForm="ngForm"
-      class="surface-card flex flex-col gap-2 p-4"
+      class="surface-card flex scroll-mt-24 flex-col gap-2 p-4 transition-shadow duration-500"
+      [class.ring-2]="draftApplied()"
+      [class.ring-primary]="draftApplied()"
       [formGroup]="form"
       (ngSubmit)="create(createForm)"
       novalidate
@@ -33,7 +35,13 @@
         <mat-form-field class="flex-1">
           <mat-label>Việc cần làm</mat-label>
           <mat-icon matPrefix>add_task</mat-icon>
-          <input matInput formControlName="title" [maxlength]="titleMax" placeholder="Ví dụ: Học Spring Security" />
+          <input
+            #titleInput
+            matInput
+            formControlName="title"
+            [maxlength]="titleMax"
+            placeholder="Ví dụ: Học Spring Security"
+          />
           @if (form.controls.title.value.length > titleMax - 20) {
             <mat-hint align="end">{{ form.controls.title.value.length }}/{{ titleMax }}</mat-hint>
           }

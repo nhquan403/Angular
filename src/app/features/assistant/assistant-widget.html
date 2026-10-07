@@ -1,0 +1,215 @@
+@if (assistant.open()) {
+  <section
+    id="assistant-panel"
+    class="panel flex h-[min(620px,calc(100dvh-6.5rem))] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-outline-variant bg-surface"
+    role="dialog"
+    aria-label="Trợ lý AI"
+    (keydown.escape)="close()"
+  >
+    <!-- Đầu khung -->
+    <header class="flex items-center gap-3 border-b border-outline-variant bg-surface-low px-4 py-3">
+      <span
+        class="grid size-9 flex-none place-items-center rounded-full bg-linear-to-br from-primary to-tertiary text-on-primary"
+        aria-hidden="true"
+      >
+        <mat-icon class="icon-filled size-5! text-xl/5!">auto_awesome</mat-icon>
+      </span>
+      <div class="min-w-0 flex-1">
+        <h2 class="text-sm font-medium">Trợ lý AI</h2>
+        <p class="truncate text-xs text-on-surface-variant">Đọc todo của bạn để trả lời và gợi ý</p>
+      </div>
+      @if (assistant.messages().length > 0) {
+        <button
+          matIconButton
+          type="button"
+          matTooltip="Cuộc trò chuyện mới"
+          aria-label="Xóa cuộc trò chuyện"
+          (click)="assistant.clear()"
+        >
+          <mat-icon>edit_square</mat-icon>
+        </button>
+      }
+      <button matIconButton type="button" matTooltip="Thu nhỏ" aria-label="Đóng trợ lý" (click)="close()">
+        <mat-icon>keyboard_arrow_down</mat-icon>
+      </button>
+    </header>
+
+    <!-- Tin nhắn -->
+    <div #scroller class="flex-1 overflow-y-auto px-4 py-4" aria-live="polite" aria-relevant="additions text">
+      @if (assistant.messages().length === 0) {
+        <div class="flex flex-col items-center pt-6 text-center">
+          <span
+            class="mb-3 grid size-14 place-items-center rounded-2xl bg-primary-container text-on-primary-container"
+            aria-hidden="true"
+          >
+            <mat-icon class="icon-filled size-7! text-[28px]/7!">waving_hand</mat-icon>
+          </span>
+          <p class="font-medium">Xin chào! Tôi có thể giúp gì?</p>
+          <p class="mt-1 max-w-72 text-sm text-on-surface-variant">
+            Hỏi về các todo của bạn, hoặc nhờ tôi soạn todo mới rồi điền sẵn vào form.
+          </p>
+          <div class="mt-5 flex w-full flex-col gap-2">
+            @for (starter of starters(); track starter) {
+              <button
+                type="button"
+                class="cursor-pointer rounded-xl border border-outline-variant bg-surface px-3 py-2 text-left text-sm text-on-surface transition-colors hover:bg-surface-high focus-visible:outline-2 focus-visible:outline-primary"
+                (click)="send(starter)"
+              >
+                {{ starter }}
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        <ol class="m-0 flex list-none flex-col gap-4 p-0">
+          @for (message of assistant.messages(); track message.id) {
+            @if (message.role === 'user') {
+              <li class="flex justify-end">
+                <p
+                  class="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm [overflow-wrap:anywhere] text-on-primary"
+                >
+                  <!-- Văn bản thuần nằm trong span riêng để khoảng trắng của template không bị giữ lại. -->
+                  <span class="whitespace-pre-wrap">{{ message.text }}</span>
+                </p>
+              </li>
+            } @else {
+              <li class="flex flex-col items-start gap-2">
+                @for (tool of message.tools; track tool) {
+                  <span class="inline-flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    @if (message.status === 'streaming' && message.text === '') {
+                      <mat-spinner diameter="12" />
+                    } @else {
+                      <mat-icon class="size-3.5! text-sm/3.5!" aria-hidden="true">check_circle</mat-icon>
+                    }
+                    {{ toolText(tool, message.status === 'streaming' && message.text === '') }}
+                  </span>
+                }
+
+                @if (message.text !== '') {
+                  <p
+                    class="max-w-[90%] rounded-2xl rounded-bl-md bg-surface-high px-3.5 py-2 text-sm [overflow-wrap:anywhere]"
+                  >
+                    <span class="whitespace-pre-wrap">{{ message.text }}</span>
+                    @if (message.status === 'streaming') {
+                      <span
+                        class="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-on-surface align-middle"
+                        aria-hidden="true"
+                      ></span>
+                    }
+                  </p>
+                } @else if (message.status === 'streaming') {
+                  <span
+                    class="inline-flex gap-1 rounded-2xl rounded-bl-md bg-surface-high px-3.5 py-3"
+                    aria-label="Trợ lý đang trả lời"
+                  >
+                    <span class="dot size-1.5 rounded-full bg-on-surface-variant"></span>
+                    <span class="dot size-1.5 rounded-full bg-on-surface-variant"></span>
+                    <span class="dot size-1.5 rounded-full bg-on-surface-variant"></span>
+                  </span>
+                }
+
+                @for (suggestion of message.suggestions; track $index) {
+                  <div class="w-[90%] rounded-2xl border border-primary/40 bg-primary-container/40 p-3">
+                    <div class="mb-1 flex items-center gap-1 text-xs font-medium text-primary">
+                      <mat-icon class="size-4! text-base/4!" aria-hidden="true">lightbulb</mat-icon>
+                      Gợi ý todo
+                    </div>
+                    <p class="text-sm font-medium [overflow-wrap:anywhere]">{{ suggestion.title }}</p>
+                    @if (suggestion.description) {
+                      <p class="mt-0.5 text-xs [overflow-wrap:anywhere] text-on-surface-variant">
+                        <span class="whitespace-pre-wrap">{{ suggestion.description }}</span>
+                      </p>
+                    }
+                    <button matButton="filled" type="button" class="mt-2 h-8! text-xs!" (click)="fill(suggestion)">
+                      <mat-icon>edit_note</mat-icon>
+                      Điền vào form tạo
+                    </button>
+                  </div>
+                }
+
+                @if (message.status === 'stopped') {
+                  <span class="text-xs text-on-surface-variant">Đã dừng</span>
+                }
+                @if (message.status === 'error') {
+                  <div
+                    class="flex w-[90%] items-start gap-2 rounded-2xl bg-error-container px-3 py-2 text-sm text-on-error-container"
+                    role="alert"
+                  >
+                    <mat-icon class="size-5! flex-none text-xl/5!" aria-hidden="true">error</mat-icon>
+                    <div class="min-w-0 flex-1">
+                      {{ message.error }}
+                      @if ($last) {
+                        <button matButton type="button" class="ml-1 h-7! px-2! text-xs!" (click)="assistant.retry()">
+                          Thử lại
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </li>
+            }
+          }
+        </ol>
+      }
+    </div>
+
+    <!-- Ô nhập -->
+    <form class="border-t border-outline-variant px-3 pt-2 pb-2" (submit)="$event.preventDefault(); send()">
+      <div
+        class="flex items-end gap-2 rounded-2xl border border-outline-variant bg-surface-lowest py-1 pr-1 pl-3 focus-within:border-primary"
+      >
+        <label for="assistant-input" class="sr-only">Nhắn cho trợ lý</label>
+        <textarea
+          #composer
+          #autosize="cdkTextareaAutosize"
+          id="assistant-input"
+          class="box-content block max-h-32 flex-1 resize-none border-0 bg-transparent py-2 text-sm leading-5 text-on-surface outline-none placeholder:text-on-surface-variant"
+          cdkTextareaAutosize
+          cdkAutosizeMinRows="1"
+          cdkAutosizeMaxRows="5"
+          placeholder="Hỏi hoặc nhờ soạn todo mới..."
+          [maxLength]="maxInput"
+          [value]="input()"
+          (input)="input.set($any($event.target).value)"
+          (keydown)="onComposerKeydown($event)"
+        ></textarea>
+        @if (assistant.busy()) {
+          <button matIconButton type="button" matTooltip="Dừng" aria-label="Dừng trả lời" (click)="assistant.stop()">
+            <mat-icon class="icon-filled">stop_circle</mat-icon>
+          </button>
+        } @else {
+          <button
+            matIconButton
+            type="submit"
+            matTooltip="Gửi (Enter)"
+            aria-label="Gửi"
+            [disabled]="input().trim() === ''"
+          >
+            <mat-icon class="icon-filled">send</mat-icon>
+          </button>
+        }
+      </div>
+      <p class="mt-1.5 text-center text-[11px] text-on-surface-variant">AI có thể nhầm. Hãy kiểm tra trước khi lưu.</p>
+    </form>
+  </section>
+}
+
+<button
+  matFab
+  type="button"
+  class="relative"
+  [attr.aria-expanded]="assistant.open()"
+  aria-controls="assistant-panel"
+  [attr.aria-label]="assistant.open() ? 'Đóng trợ lý AI' : 'Mở trợ lý AI'"
+  [matTooltip]="assistant.open() ? '' : 'Trợ lý AI'"
+  matTooltipPosition="left"
+  (click)="assistant.toggle()"
+>
+  <mat-icon class="icon-filled">{{ assistant.open() ? 'close' : 'auto_awesome' }}</mat-icon>
+  @if (assistant.unread() && !assistant.open()) {
+    <span
+      class="absolute top-1 right-1 size-3 rounded-full border-2 border-surface bg-error"
+      aria-label="Có tin trả lời mới"
+    ></span>
+  }
+</button>

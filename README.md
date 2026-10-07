@@ -21,6 +21,7 @@ Giao diện Angular 22 cho [todo-api](../todo-api) (Spring Boot, kiến trúc He
 | Sự kiện không được phát lại | `resync$`: kết nối lại xong thì tải lại danh sách |
 | CORS, kiểm tra Origin của WebSocket | BE đã thêm `http://localhost:4200` vào `app.cors.allowed-origins` |
 | Swagger UI | Link ở chân trang và menu tài khoản |
+| Trợ lý AI (cần BE thêm `POST /api/assistant/chat`) | Nút ✦ góc phải dưới, `features/assistant/` (xem [docs/assistant-backend.md](docs/assistant-backend.md)) |
 
 ## Chạy
 
@@ -80,8 +81,9 @@ src/app/
 ├── layout/  shell, realtime-badge, theme-toggle  thanh trên cùng, trạng thái kết nối, menu tài khoản
 └── features/
     ├── auth/  auth-layout, login, register
-    ├── todos/  todo-api, todo-query, todo-list, todo-detail, unsaved-changes-guard
+    ├── todos/  todo-api, todo-query, todo-list, todo-detail, unsaved-changes-guard, todo-draft-bridge
     ├── realtime/  activity-feed
+    ├── assistant/  assistant-widget, assistant-service, assistant-api, sse-parser, page-context
     └── admin/  admin-users
 src/environments/   apiBaseUrl cho dev và production
 src/styles.scss     theme Angular Material (M3) và màu bổ sung
@@ -109,14 +111,18 @@ Refresh token của BE xoay vòng: mỗi token chỉ dùng được một lần,
 **4. Không mất dữ liệu đang gõ (`todo-detail.ts`, `unsaved-changes-guard.ts`).**
 Form còn thay đổi chưa lưu thì rời trang trong app sẽ hiện hộp thoại hỏi lại, đóng tab hay F5 thì trình duyệt hỏi. Lỗi BE trả theo từng ô (`errors` của ProblemDetail) được gắn thẳng vào FormControl (`shared/form-errors.ts`) để hiện ngay dưới ô đó.
 
-**5. Guard chỉ để trải nghiệm tốt hơn.**
+**5. Trợ lý AI (`features/assistant/`).**
+Nút ✦ ở góc phải dưới mở khung chat. Trợ lý (Claude, chạy ở BE) đọc todo của người dùng bằng tool và biết trang đang mở (bộ lọc, todo đang xem, nội dung đang gõ trong form tạo). Khi được nhờ soạn todo, trợ lý trả về thẻ gợi ý; bấm "Điền vào form tạo" thì form "Thêm todo" được điền sẵn (đang ở trang khác thì tự chuyển về danh sách), người dùng vẫn tự bấm "Thêm". Câu trả lời stream qua `POST` + `text/event-stream` bằng HttpClient (`reportProgress`), nên vẫn được gắn Bearer và tự làm mới token như mọi request. Nội dung từ AI chỉ hiển thị dạng văn bản thuần. Hợp đồng API và code mẫu Spring: [docs/assistant-backend.md](docs/assistant-backend.md). Tắt bằng `assistantEnabled: false` trong `src/environments/`.
+
+**6. Guard chỉ để trải nghiệm tốt hơn.**
 `authGuard`, `adminGuard` tránh cho người dùng thấy trang rồi mới bị 403. Chúng **không phải** bảo mật: JavaScript trong trình duyệt ai cũng sửa được. Quyền thật luôn do BE kiểm tra ở mỗi request.
 
 ## Kiểm tra đã làm
 
-- `npm test`: 68 unit test (interceptor và refresh token, realtime kể cả backoff, parse sự kiện, parse URL, lỗi API, token, gắn lỗi BE vào form, thông báo, giao diện sáng/tối, guard thay đổi chưa lưu, bắt lỗi toàn cục, form đăng nhập).
+- `npm test`: 96 unit test (trợ lý AI: đọc SSE theo từng mẩu, stream qua HttpClient, ghép câu trả lời, dừng / thử lại, ngữ cảnh trang, điền form từ gợi ý, khung chat; interceptor và refresh token, realtime kể cả backoff, parse sự kiện, parse URL, lỗi API, token, gắn lỗi BE vào form, thông báo, giao diện sáng/tối, guard thay đổi chưa lưu, bắt lỗi toàn cục, form đăng nhập).
 - `npm run lint`, `npm run build` sạch.
-- Chạy bản build thật trong Chromium với **một BE giả** viết theo đúng controller và DTO của `todo-api` (không phải Spring thật): 18 bước gồm chuyển về đăng nhập kèm `returnUrl`, lỗi từng ô, thêm / hoàn thành / xóa (qua hộp thoại) todo, lọc và phân trang trên URL, SSE giữa hai tab, xung đột version, hỏi khi rời trang chưa lưu, ADMIN đổi role, chế độ tối, bố cục điện thoại 390px không tràn ngang, đăng xuất đồng bộ giữa các tab, trang 404.
+- Chạy bản build thật trong Chromium với **một BE giả** viết theo đúng controller và DTO của `todo-api` (không phải Spring thật): 18 bước gồm chuyển về đăng nhập kèm `returnUrl`, lỗi từng ô, thêm / hoàn thành / xóa (qua hộp thoại) todo, lọc và phân trang trên URL, SSE giữa hai tab, xung đột version, hỏi khi rời trang chưa lưu, ADMIN đổi role, chế độ tối, bố cục điện thoại 390px không tràn ngang, đăng xuất đồng bộ giữa các tab, trang 404. Thêm 10 bước cho trợ lý AI với một BE giả trả lời theo kịch bản: mở khung chat, câu trả lời stream kèm ngữ cảnh trang, gợi ý điền vào form (không tự tạo), gửi kèm nội dung đang gõ, điền từ trang chi tiết thì tự về danh sách, dừng giữa chừng, lỗi giữa stream và Thử lại, Esc, chế độ tối và điện thoại.
+- Phần BE của trợ lý (gọi Claude thật) chưa được viết trong `todo-api`; code mẫu trong `docs/assistant-backend.md` chưa được biên dịch.
 - Chưa chạy với BE Spring thật. Nếu có chỗ lệch hợp đồng (ví dụ định dạng thời gian, tên trường) thì sẽ lộ ra khi chạy `mvn spring-boot:run` rồi `npm start`.
 
 ## Giới hạn đã biết

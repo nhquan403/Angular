@@ -127,3 +127,10 @@
   <span aria-hidden="true">·</span>
   <a [href]="swaggerUrl" target="_blank" rel="noopener">Swagger UI</a>
 </footer>
+
+@if (assistantEnabled) {
+  <!-- Tải code trợ lý khi trình duyệt rảnh, không làm chậm lần hiển thị đầu tiên. -->
+  @defer (on idle) {
+    <app-assistant-widget />
+  }
+}

@@ -45,7 +45,7 @@ const FALLBACK_MESSAGES: Readonly<Record<number, string>> = {
 };
 
 export function toApiError(response: HttpErrorResponse): ApiError {
-  const body: unknown = response.error;
+  const body = parseJsonText(response.error);
   let detail: string | null = null;
   let fieldErrors: Record<string, string> = {};
 
@@ -63,4 +63,16 @@ export function toApiError(response: HttpErrorResponse): ApiError {
 
   const message = detail ?? FALLBACK_MESSAGES[response.status] ?? `Lỗi không xác định (HTTP ${response.status})`;
   return new ApiError(response.status, message, fieldErrors, response.headers?.get(REQUEST_ID_HEADER) ?? null);
+}
+
+/** Request dùng `responseType: 'text'` (ví dụ stream của trợ lý) nhận body lỗi dạng chuỗi: thử đọc JSON. */
+function parseJsonText(body: unknown): unknown {
+  if (typeof body !== 'string') {
+    return body;
+  }
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return body;
+  }
 }
