@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { adminGuard, authGuard, guestGuard } from './core/auth/guards';
-import { Shell } from './layout/shell';
+import { unsavedChangesGuard } from './features/todos/unsaved-changes-guard';
 
 /**
  * Bản đồ đường dẫn của ứng dụng.
@@ -22,7 +22,7 @@ export const routes: Routes = [
   {
     // Shell là khung chung (thanh trên cùng) của mọi trang cần đăng nhập.
     path: '',
-    component: Shell,
+    loadComponent: () => import('./layout/shell').then((m) => m.Shell),
     canActivate: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'todos' },
@@ -34,6 +34,7 @@ export const routes: Routes = [
       {
         path: 'todos/:id',
         title: 'Chi tiết todo',
+        canDeactivate: [unsavedChangesGuard],
         loadComponent: () => import('./features/todos/todo-detail').then((m) => m.TodoDetail),
       },
       {

@@ -1,18 +1,36 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import { AuthStore } from '../../core/auth/auth-store';
-import { safeReturnUrl, showError } from './auth-form';
+import { Alert } from '../../shared/alert';
+import { AuthLayout } from './auth-layout';
+import { safeReturnUrl } from './auth-form';
 
 /** Tài khoản ADMIN mà BE tạo sẵn khi chạy profile dev (application-dev.properties). */
 const DEV_ADMIN = { email: 'admin@example.com', password: 'Admin#12345' };
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatIconModule,
+    MatTooltipModule,
+    MatProgressSpinnerModule,
+    Alert,
+    AuthLayout,
+  ],
   templateUrl: './login.html',
-  styleUrl: './auth.css',
 })
 export class Login {
   private readonly fb = inject(FormBuilder).nonNullable;
@@ -26,8 +44,8 @@ export class Login {
   });
   protected readonly submitting = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly showPassword = signal(false);
   protected readonly endedReason = this.auth.endedReason;
-  protected readonly showError = showError;
 
   protected fillDevAdmin(): void {
     this.form.setValue(DEV_ADMIN);

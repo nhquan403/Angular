@@ -1,9 +1,5 @@
-import { AbstractControl, ValidationErrors } from '@angular/forms';
-
-/** Dùng chung cho form đăng nhập/đăng ký: ô nào đã chạm vào mà sai thì hiện lỗi. */
-export function showError(control: AbstractControl, serverMessage?: string): boolean {
-  return (control.invalid && (control.touched || control.dirty)) || serverMessage !== undefined;
-}
+import { AbstractControl, FormGroupDirective, NgForm, ValidationErrors } from '@angular/forms';
+import { ErrorStateMatcher } from '@angular/material/core';
 
 /** Mật khẩu nhập lại phải khớp (chỉ kiểm tra ở client, BE không nhận trường này). */
 export function passwordsMatch(group: AbstractControl): ValidationErrors | null {
@@ -11,6 +7,14 @@ export function passwordsMatch(group: AbstractControl): ValidationErrors | null 
   const confirm = group.get('confirm')?.value as string | undefined;
   return password === confirm ? null : { mismatch: true };
 }
+
+/** Ô "nhập lại mật khẩu" đỏ cả khi lỗi nằm ở cấp form (mismatch), không chỉ lỗi của riêng ô đó. */
+export const confirmPasswordMatcher: ErrorStateMatcher = {
+  isErrorState(control: AbstractControl | null, form: FormGroupDirective | NgForm | null): boolean {
+    const touched = control?.touched === true || form?.submitted === true;
+    return touched && (control?.invalid === true || form?.hasError('mismatch') === true);
+  },
+};
 
 /** Lấy returnUrl từ query string, chỉ nhận đường dẫn nội bộ để tránh bị lợi dụng chuyển hướng ra trang ngoài. */
 export function safeReturnUrl(value: string | null): string {

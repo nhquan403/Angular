@@ -1,29 +1,129 @@
-<header class="bar">
-  <div class="page bar-inner">
-    <a routerLink="/todos" class="brand">✔ Todo</a>
+<a
+  class="absolute -top-12 left-4 z-50 rounded-lg bg-primary px-4 py-2 text-on-primary no-underline! focus:top-2"
+  href="#main"
+>
+  Bỏ qua tới nội dung chính
+</a>
 
-    <nav class="row" aria-label="Điều hướng chính">
-      <a routerLink="/todos" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">Todo</a>
-      @if (auth.isAdmin()) {
-        <a routerLink="/admin/users" routerLinkActive="active">Người dùng</a>
-      }
-    </nav>
+<header class="sticky top-0 z-10 border-b border-outline-variant">
+  <mat-toolbar class="toolbar px-0! backdrop-blur-md">
+    <div class="mx-auto flex w-full max-w-app items-center gap-2 px-4">
+      <a
+        routerLink="/todos"
+        class="mr-3 inline-flex items-center gap-2 text-on-surface! no-underline"
+        aria-label="Todo, về trang chủ"
+      >
+        <span class="grid size-9 place-items-center rounded-xl bg-primary text-on-primary" aria-hidden="true">
+          <mat-icon class="icon-filled">task_alt</mat-icon>
+        </span>
+        <span class="text-xl font-bold max-md:hidden">Todo</span>
+      </a>
 
-    <div class="row right">
+      <nav class="nav flex gap-1" aria-label="Điều hướng chính">
+        <a
+          matButton
+          routerLink="/todos"
+          routerLinkActive="active"
+          ariaCurrentWhenActive="page"
+          class="text-on-surface-variant!"
+        >
+          <mat-icon>checklist</mat-icon>
+          <span class="max-md:hidden">Công việc</span>
+        </a>
+        @if (auth.isAdmin()) {
+          <a
+            matButton
+            routerLink="/admin/users"
+            routerLinkActive="active"
+            ariaCurrentWhenActive="page"
+            class="text-on-surface-variant!"
+          >
+            <mat-icon>group</mat-icon>
+            <span class="max-md:hidden">Người dùng</span>
+          </a>
+        }
+      </nav>
+
+      <span class="flex-1"></span>
+
       <app-realtime-badge />
+      <app-theme-toggle />
+
       @if (auth.user(); as user) {
-        <span class="who truncate" [title]="user.email">{{ user.email }}</span>
-        <span class="badge" [class.admin]="user.role === 'ADMIN'">{{ user.role }}</span>
+        <button
+          type="button"
+          class="ml-1 grid size-9 cursor-pointer place-items-center rounded-full border-0 bg-tertiary-container text-sm font-medium text-on-tertiary-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          [matMenuTriggerFor]="userMenu"
+          [matTooltip]="user.email"
+          [attr.aria-label]="'Tài khoản ' + user.email"
+        >
+          {{ initial() }}
+        </button>
+        <mat-menu #userMenu="matMenu" xPosition="before">
+          <div
+            class="flex max-w-80 min-w-64 items-center gap-3 px-4 py-3"
+            role="presentation"
+            (click)="$event.stopPropagation()"
+          >
+            <span
+              class="grid size-11 flex-none place-items-center rounded-full bg-tertiary-container font-medium text-on-tertiary-container"
+              aria-hidden="true"
+              >{{ initial() }}</span
+            >
+            <div class="min-w-0 flex-1">
+              <div class="mb-1 truncate text-sm font-medium">{{ user.email }}</div>
+              <span class="pill" [class.primary]="user.role === 'ADMIN'">
+                <mat-icon>{{ user.role === 'ADMIN' ? 'shield_person' : 'person' }}</mat-icon>
+                {{ user.role }}
+              </span>
+            </div>
+          </div>
+          <mat-divider />
+          <!-- Trên điện thoại thanh trên cùng không đủ chỗ cho nút chọn SSE/WebSocket, nên đưa vào đây. -->
+          <div class="sm:hidden" role="group" aria-label="Kiểu kết nối thời gian thực">
+            @for (option of transports; track option.value) {
+              <button
+                mat-menu-item
+                type="button"
+                role="menuitemradio"
+                [attr.aria-checked]="realtime.transport() === option.value"
+                (click)="realtime.setTransport(option.value)"
+              >
+                <mat-icon>{{
+                  realtime.transport() === option.value ? 'radio_button_checked' : 'radio_button_unchecked'
+                }}</mat-icon>
+                <span>Kết nối qua {{ option.label }}</span>
+              </button>
+            }
+            <mat-divider />
+          </div>
+          <a mat-menu-item [href]="swaggerUrl" target="_blank" rel="noopener">
+            <mat-icon>api</mat-icon>
+            <span>Tài liệu API</span>
+          </a>
+          <button mat-menu-item type="button" (click)="logout()">
+            <mat-icon>logout</mat-icon>
+            <span>Đăng xuất</span>
+          </button>
+        </mat-menu>
       }
-      <button type="button" class="btn small" (click)="logout()">Đăng xuất</button>
     </div>
-  </div>
+  </mat-toolbar>
+  @if (navigating()) {
+    <mat-progress-bar
+      class="absolute! inset-x-0 -bottom-0.5 h-0.75!"
+      mode="indeterminate"
+      aria-label="Đang chuyển trang"
+    />
+  }
 </header>
 
-<main class="page">
+<main id="main" class="page flex-auto outline-none" tabindex="-1">
   <router-outlet />
 </main>
 
-<footer class="page muted small foot">
-  API: <a [href]="swaggerUrl" target="_blank" rel="noopener">Swagger UI</a>
+<footer class="page flex gap-2 py-5! text-xs text-on-surface-variant">
+  <span>© {{ year }} Todo</span>
+  <span aria-hidden="true">·</span>
+  <a [href]="swaggerUrl" target="_blank" rel="noopener">Swagger UI</a>
 </footer>

@@ -1,133 +1,234 @@
-<div class="cols">
-  <div class="stack">
-    <h1>{{ auth.isAdmin() ? 'Tất cả todo' : 'Todo của tôi' }}</h1>
+<div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+  <div class="flex min-w-0 flex-col gap-5">
+    <header class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">{{ auth.isAdmin() ? 'Tất cả todo' : 'Todo của tôi' }}</h1>
+        <p class="mt-1 text-sm text-on-surface-variant">
+          @if (page(); as current) {
+            {{ current.totalElements }} công việc
+            @if (query().completed !== null) {
+              · {{ query().completed ? 'đã xong' : 'đang làm' }}
+            }
+          } @else {
+            Quản lý và theo dõi công việc theo thời gian thực
+          }
+        </p>
+      </div>
+    </header>
 
     @if (auth.isAdmin()) {
-      <p class="banner small">Bạn là ADMIN: danh sách gồm todo của mọi người dùng.</p>
+      <app-alert kind="info">Bạn là ADMIN: danh sách gồm todo của mọi người dùng.</app-alert>
     }
 
     <!-- Thêm nhanh -->
-    <form class="card stack" [formGroup]="form" (ngSubmit)="create()" novalidate>
-      <div class="field">
-        <label for="new-title">Việc cần làm</label>
-        <input id="new-title" class="input" formControlName="title" [attr.maxlength]="titleMax" placeholder="Ví dụ: Học Spring Security"
-               [class.invalid]="(form.controls.title.invalid && form.controls.title.touched) || serverErrors()['title']" />
-        @if (serverErrors()['title']; as message) {
-          <p class="error-text">{{ message }}</p>
-        } @else if (form.controls.title.invalid && form.controls.title.touched) {
-          <p class="error-text">Nhập tiêu đề (tối đa {{ titleMax }} ký tự)</p>
-        }
+    <form
+      #createForm="ngForm"
+      class="surface-card flex flex-col gap-2 p-4"
+      [formGroup]="form"
+      (ngSubmit)="create(createForm)"
+      novalidate
+      aria-label="Thêm todo"
+    >
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+        <mat-form-field class="flex-1">
+          <mat-label>Việc cần làm</mat-label>
+          <mat-icon matPrefix>add_task</mat-icon>
+          <input matInput formControlName="title" [maxlength]="titleMax" placeholder="Ví dụ: Học Spring Security" />
+          @if (form.controls.title.value.length > titleMax - 20) {
+            <mat-hint align="end">{{ form.controls.title.value.length }}/{{ titleMax }}</mat-hint>
+          }
+          @if (form.controls.title.hasError('server')) {
+            <mat-error>{{ form.controls.title.getError('server') }}</mat-error>
+          } @else {
+            <mat-error>Nhập tiêu đề (tối đa {{ titleMax }} ký tự)</mat-error>
+          }
+        </mat-form-field>
+        <button matButton="filled" type="submit" class="h-14! sm:min-w-32" [disabled]="creating()">
+          @if (creating()) {
+            <mat-spinner diameter="20" class="mr-2 inline-block! align-middle" />
+          } @else {
+            <mat-icon>add</mat-icon>
+          }
+          {{ creating() ? 'Đang thêm' : 'Thêm' }}
+        </button>
       </div>
-      <div class="field">
-        <label for="new-description">Ghi chú (không bắt buộc)</label>
-        <textarea id="new-description" class="input" formControlName="description" [attr.maxlength]="descriptionMax"
-                  [class.invalid]="form.controls.description.invalid || serverErrors()['description']"></textarea>
-        @if (serverErrors()['description']; as message) {
-          <p class="error-text">{{ message }}</p>
-        }
-      </div>
-      <button type="submit" class="btn primary" style="align-self: flex-start" [disabled]="creating()">
-        {{ creating() ? 'Đang thêm...' : 'Thêm todo' }}
-      </button>
+
+      @if (showDescription()) {
+        <mat-form-field>
+          <mat-label>Ghi chú</mat-label>
+          <textarea
+            matInput
+            formControlName="description"
+            [maxlength]="descriptionMax"
+            cdkTextareaAutosize
+            rows="2"
+          ></textarea>
+          <mat-hint align="end">{{ form.controls.description.value.length }}/{{ descriptionMax }}</mat-hint>
+          @if (form.controls.description.hasError('server')) {
+            <mat-error>{{ form.controls.description.getError('server') }}</mat-error>
+          }
+        </mat-form-field>
+      } @else {
+        <button matButton type="button" class="self-start" (click)="showDescription.set(true)">
+          <mat-icon>notes</mat-icon>
+          Thêm ghi chú
+        </button>
+      }
     </form>
 
     <!-- Bộ lọc, sắp xếp -->
-    <div class="row">
-      <div class="chips" role="group" aria-label="Lọc theo trạng thái">
-        <button type="button" class="chip" [attr.aria-pressed]="query().completed === null" (click)="filterBy(null)">Tất cả</button>
-        <button type="button" class="chip" [attr.aria-pressed]="query().completed === false" (click)="filterBy(false)">Đang làm</button>
-        <button type="button" class="chip" [attr.aria-pressed]="query().completed === true" (click)="filterBy(true)">Đã xong</button>
-      </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <mat-button-toggle-group
+        hideSingleSelectionIndicator
+        aria-label="Lọc theo trạng thái"
+        [value]="query().completed"
+        (change)="filterBy($event.value)"
+      >
+        <mat-button-toggle [value]="null">Tất cả</mat-button-toggle>
+        <mat-button-toggle [value]="false">Đang làm</mat-button-toggle>
+        <mat-button-toggle [value]="true">Đã xong</mat-button-toggle>
+      </mat-button-toggle-group>
 
-      <div class="row right">
-        <label class="sr-only" for="sort-by">Sắp xếp theo</label>
-        <select id="sort-by" class="input" (change)="sortBy($event)">
-          @for (field of sortFields; track field) {
-            <option [value]="field" [selected]="field === query().sortBy">{{ sortLabel[field] }}</option>
-          }
-        </select>
-        <button type="button" class="btn small" (click)="toggleDirection()"
-                [attr.aria-label]="query().direction === 'desc' ? 'Đang giảm dần, bấm để tăng dần' : 'Đang tăng dần, bấm để giảm dần'">
-          {{ query().direction === 'desc' ? '↓ Giảm dần' : '↑ Tăng dần' }}
+      <div class="ml-auto flex items-center gap-1">
+        <mat-form-field
+          class="w-44 [--mat-form-field-container-height:44px] [--mat-form-field-container-vertical-padding:10px]"
+        >
+          <mat-label>Sắp xếp theo</mat-label>
+          <mat-select [value]="query().sortBy" (selectionChange)="sortBy($event.value)">
+            @for (field of sortFields; track field) {
+              <mat-option [value]="field">{{ sortLabel[field] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button
+          matIconButton
+          type="button"
+          (click)="toggleDirection()"
+          [matTooltip]="query().direction === 'desc' ? 'Giảm dần' : 'Tăng dần'"
+          [attr.aria-label]="
+            query().direction === 'desc' ? 'Đang giảm dần, bấm để tăng dần' : 'Đang tăng dần, bấm để giảm dần'
+          "
+        >
+          <mat-icon>{{ query().direction === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
         </button>
       </div>
     </div>
 
     <!-- Danh sách -->
-    <section class="card" aria-live="polite" [attr.aria-busy]="loading()">
-      @if (loadError(); as message) {
-        @if (page() === null) {
-          <div class="stack">
-            <p class="banner error" role="alert">{{ message }}</p>
-            <button type="button" class="btn" style="align-self: flex-start" (click)="reload()">Thử lại</button>
-          </div>
-        }
+    <section class="surface-card relative" aria-live="polite" [attr.aria-busy]="loading()" aria-label="Danh sách todo">
+      @if (loading() && page() !== null) {
+        <mat-progress-bar class="absolute! inset-x-0 top-0" mode="indeterminate" />
       }
 
       @if (page(); as current) {
         @if (current.content.length === 0) {
-          <p class="muted">
-            {{ query().completed === null ? 'Chưa có todo nào. Thêm todo đầu tiên ở khung phía trên.' : 'Không có todo nào khớp bộ lọc.' }}
-          </p>
+          @if (query().completed === null) {
+            <app-empty-state
+              icon="checklist"
+              title="Chưa có todo nào"
+              message="Thêm công việc đầu tiên ở khung phía trên để bắt đầu."
+            />
+          } @else {
+            <app-empty-state icon="filter_alt_off" title="Không có todo nào khớp bộ lọc">
+              <button matButton="outlined" type="button" (click)="filterBy(null)">Xem tất cả</button>
+            </app-empty-state>
+          }
         } @else {
-          <ul class="list">
+          <ul class="m-0 list-none divide-y divide-outline-variant p-0">
             @for (todo of current.content; track todo.id) {
-              <li [class.flash]="flashed().has(todo.id)">
-                <div class="row nowrap">
-                  <input type="checkbox" [checked]="todo.completed" [disabled]="isBusy(todo.id)"
-                         (change)="toggle(todo)" [attr.aria-label]="(todo.completed ? 'Mở lại: ' : 'Hoàn thành: ') + todo.title" />
-                  <div class="grow">
-                    <a class="todo-title" [class.done]="todo.completed" [routerLink]="['/todos', todo.id]">{{ todo.title }}</a>
-                    @if (todo.description) {
-                      <div class="muted small truncate">{{ todo.description }}</div>
-                    }
-                    <div class="muted small">Tạo {{ todo.createdAt | date: 'dd/MM/yyyy HH:mm' }}</div>
+              <li
+                class="group flex items-center gap-2 py-2 pr-2 pl-1 transition-colors duration-700 hover:bg-surface-low"
+                [class.bg-flash!]="flashed().has(todo.id)"
+              >
+                <mat-checkbox
+                  [checked]="todo.completed"
+                  [disabled]="isBusy(todo.id)"
+                  (change)="toggle(todo)"
+                  [aria-label]="(todo.completed ? 'Mở lại: ' : 'Hoàn thành: ') + todo.title"
+                />
+                <div class="min-w-0 flex-1 py-1">
+                  <a
+                    class="block truncate font-medium text-on-surface! no-underline hover:underline"
+                    [class.line-through]="todo.completed"
+                    [class.text-on-surface-variant!]="todo.completed"
+                    [routerLink]="['/todos', todo.id]"
+                    >{{ todo.title }}</a
+                  >
+                  @if (todo.description) {
+                    <div class="truncate text-sm text-on-surface-variant">{{ todo.description }}</div>
+                  }
+                  <div class="mt-0.5 flex items-center gap-1 text-xs text-on-surface-variant">
+                    <mat-icon class="size-3.5! text-sm/3.5!" aria-hidden="true">schedule</mat-icon>
+                    <time [attr.datetime]="todo.createdAt">{{ todo.createdAt | date: 'dd/MM/yyyy HH:mm' }}</time>
                   </div>
+                </div>
 
-                  <span class="row actions">
-                    @if (todo.completed) {
-                      <span class="badge done">Xong</span>
-                    }
-
-                    @if (confirmingDelete() === todo.id) {
-                      <span class="row">
-                        <span class="small">Xóa?</span>
-                        <button type="button" class="btn danger solid small" (click)="confirmDelete(todo)">Xóa</button>
-                        <button type="button" class="btn small" (click)="cancelDelete()">Hủy</button>
-                      </span>
-                    } @else {
-                      <a class="btn small" [routerLink]="['/todos', todo.id]">Sửa</a>
-                      <button type="button" class="btn danger small" [disabled]="isBusy(todo.id)" (click)="askDelete(todo)"
-                              [attr.aria-label]="'Xóa ' + todo.title">Xóa</button>
-                    }
-                  </span>
+                @if (todo.completed) {
+                  <span class="pill success max-sm:hidden"><mat-icon>check</mat-icon>Xong</span>
+                }
+                <div
+                  class="flex flex-none items-center opacity-100 transition-opacity md:opacity-60 md:group-hover:opacity-100"
+                >
+                  <a
+                    matIconButton
+                    [routerLink]="['/todos', todo.id]"
+                    matTooltip="Sửa"
+                    [attr.aria-label]="'Sửa ' + todo.title"
+                  >
+                    <mat-icon>edit</mat-icon>
+                  </a>
+                  <button
+                    matIconButton
+                    type="button"
+                    class="danger-icon"
+                    [disabled]="isBusy(todo.id)"
+                    (click)="askDelete(todo)"
+                    matTooltip="Xóa"
+                    [attr.aria-label]="'Xóa ' + todo.title"
+                  >
+                    <mat-icon>delete</mat-icon>
+                  </button>
                 </div>
               </li>
             }
           </ul>
-
-          <!-- Phân trang -->
-          <div class="row between" style="margin-top: .75rem">
-            <span class="muted small">
-              {{ current.totalElements }} todo · trang {{ current.page + 1 }}/{{ current.totalPages }}
-            </span>
-            <div class="row">
-              <label class="sr-only" for="page-size">Số dòng mỗi trang</label>
-              <select id="page-size" class="input" (change)="pageSize($event)">
-                @for (size of pageSizes; track size) {
-                  <option [value]="size" [selected]="size === query().size">{{ size }} / trang</option>
-                }
-              </select>
-              <button type="button" class="btn small" [disabled]="current.page === 0" (click)="go({ page: current.page - 1 })">← Trước</button>
-              <button type="button" class="btn small" [disabled]="current.last" (click)="go({ page: current.page + 1 })">Sau →</button>
-            </div>
-          </div>
         }
-      } @else if (loading()) {
-        <p class="muted">Đang tải...</p>
+
+        <mat-paginator
+          class="border-t border-outline-variant"
+          [length]="current.totalElements"
+          [pageIndex]="current.page"
+          [pageSize]="query().size"
+          [pageSizeOptions]="pageSizes"
+          [showFirstLastButtons]="true"
+          (page)="onPage($event)"
+          aria-label="Chọn trang"
+        />
+      } @else if (loadError(); as message) {
+        <div class="p-4">
+          <app-alert kind="error" heading="Không tải được danh sách">
+            {{ message }}
+            <button alertActions matButton="outlined" type="button" (click)="reload()">
+              <mat-icon>refresh</mat-icon>
+              Thử lại
+            </button>
+          </app-alert>
+        </div>
+      } @else {
+        <ul class="m-0 list-none divide-y divide-outline-variant p-0" aria-label="Đang tải">
+          @for (i of [1, 2, 3, 4]; track i) {
+            <li class="flex items-center gap-4 p-4">
+              <span class="size-5 animate-pulse rounded bg-surface-high"></span>
+              <span class="flex flex-1 flex-col gap-2">
+                <span class="h-4 w-2/3 animate-pulse rounded bg-surface-high"></span>
+                <span class="h-3 w-1/3 animate-pulse rounded bg-surface-high"></span>
+              </span>
+            </li>
+          }
+        </ul>
       }
     </section>
   </div>
 
-  <app-activity-feed />
+  <app-activity-feed class="lg:sticky lg:top-24" />
 </div>

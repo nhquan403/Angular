@@ -1,90 +1,132 @@
-<div class="stack" style="max-width: 720px; margin: 0 auto">
-  <a routerLink="/todos">← Danh sách todo</a>
+<div class="mx-auto flex max-w-3xl flex-col gap-4">
+  <a matButton routerLink="/todos" class="-ml-3 self-start">
+    <mat-icon>arrow_back</mat-icon>
+    Danh sách todo
+  </a>
 
   @switch (state()) {
     @case ('loading') {
-      <p class="muted">Đang tải...</p>
+      <div class="surface-card flex flex-col gap-4 p-6" aria-busy="true" aria-label="Đang tải">
+        <span class="h-7 w-1/2 animate-pulse rounded bg-surface-high"></span>
+        <span class="h-14 animate-pulse rounded bg-surface-high"></span>
+        <span class="h-28 animate-pulse rounded bg-surface-high"></span>
+        <span class="h-10 w-1/3 animate-pulse rounded bg-surface-high"></span>
+      </div>
     }
     @case ('notFound') {
-      <div class="card stack">
-        <h1>Không tìm thấy todo</h1>
-        <p class="muted">Todo này không tồn tại hoặc không thuộc về bạn.</p>
+      <div class="surface-card">
+        <app-empty-state
+          icon="search_off"
+          title="Không tìm thấy todo"
+          message="Todo này không tồn tại hoặc không thuộc về bạn."
+        >
+          <a matButton="filled" routerLink="/todos">Về danh sách</a>
+        </app-empty-state>
       </div>
     }
     @case ('deleted') {
-      <div class="card stack">
-        <h1>Todo đã bị xóa</h1>
-        <p class="muted">Todo này vừa bị xóa (ở tab khác hoặc bởi người khác).</p>
-        <a routerLink="/todos" class="btn primary" style="align-self: flex-start">Về danh sách</a>
+      <div class="surface-card">
+        <app-empty-state
+          icon="delete_sweep"
+          title="Todo đã bị xóa"
+          message="Todo này vừa bị xóa (ở tab khác hoặc bởi người khác)."
+        >
+          <a matButton="filled" routerLink="/todos">Về danh sách</a>
+        </app-empty-state>
       </div>
     }
     @case ('error') {
-      <div class="card stack">
-        <p class="banner error" role="alert">{{ loadError() }}</p>
-        <button type="button" class="btn" style="align-self: flex-start" (click)="retry()">Thử lại</button>
-      </div>
+      <app-alert kind="error" heading="Không tải được todo">
+        {{ loadError() }}
+        <button alertActions matButton="outlined" type="button" (click)="retry()">
+          <mat-icon>refresh</mat-icon>
+          Thử lại
+        </button>
+      </app-alert>
     }
     @case ('ready') {
       @if (todo(); as current) {
         @if (remoteVersion(); as remote) {
-          <div class="banner warn stack" role="alert">
-            <strong>Todo này vừa được thay đổi ở nơi khác.</strong>
-            <span class="small">Bản mới: "{{ remote.title }}" (phiên bản {{ remote.version }}). Bạn đang giữ phiên bản {{ current.version }} và có thay đổi chưa lưu.</span>
-            <span class="row">
-              <button type="button" class="btn small" (click)="useRemote()">Lấy bản mới (bỏ thay đổi của tôi)</button>
-              <button type="button" class="btn small" (click)="keepMine()">Giữ thay đổi của tôi</button>
-            </span>
-          </div>
+          <app-alert kind="warn" heading="Todo này vừa được thay đổi ở nơi khác">
+            Bản mới: "{{ remote.title }}" (phiên bản {{ remote.version }}). Bạn đang giữ phiên bản
+            {{ current.version }} và có thay đổi chưa lưu.
+            <button alertActions matButton="outlined" type="button" (click)="useRemote()">
+              Lấy bản mới (bỏ thay đổi của tôi)
+            </button>
+            <button alertActions matButton="filled" type="button" (click)="keepMine()">Giữ thay đổi của tôi</button>
+          </app-alert>
         }
 
-        <form class="card stack" [formGroup]="form" (ngSubmit)="save()" novalidate>
-          <div class="row between">
-            <h1>Chi tiết todo #{{ current.id }}</h1>
-            <span class="badge" [class.done]="current.completed">{{ current.completed ? 'Đã xong' : 'Đang làm' }}</span>
+        <form class="surface-card flex flex-col" [formGroup]="form" (ngSubmit)="save()" novalidate>
+          <div class="flex flex-wrap items-center gap-3 border-b border-outline-variant px-6 py-4">
+            <h1 class="text-xl font-bold">Todo #{{ current.id }}</h1>
+            <span class="pill" [class.success]="current.completed" [class.primary]="!current.completed">
+              <mat-icon>{{ current.completed ? 'check_circle' : 'pending' }}</mat-icon>
+              {{ current.completed ? 'Đã xong' : 'Đang làm' }}
+            </span>
+            <span class="ml-auto text-xs text-on-surface-variant">Phiên bản {{ current.version }}</span>
           </div>
 
-          <div class="field">
-            <label for="title">Tiêu đề</label>
-            <input id="title" class="input" formControlName="title" [attr.maxlength]="titleMax"
-                   [class.invalid]="(form.controls.title.invalid && form.controls.title.touched) || serverErrors()['title']" />
-            @if (serverErrors()['title']; as message) {
-              <p class="error-text">{{ message }}</p>
-            } @else if (form.controls.title.invalid && form.controls.title.touched) {
-              <p class="error-text">Nhập tiêu đề (tối đa {{ titleMax }} ký tự)</p>
-            }
+          <div class="flex flex-col gap-2 px-6 pt-6">
+            <mat-form-field>
+              <mat-label>Tiêu đề</mat-label>
+              <input matInput formControlName="title" [maxlength]="titleMax" required />
+              <mat-hint align="end">{{ form.controls.title.value.length }}/{{ titleMax }}</mat-hint>
+              @if (form.controls.title.hasError('server')) {
+                <mat-error>{{ form.controls.title.getError('server') }}</mat-error>
+              } @else {
+                <mat-error>Nhập tiêu đề (tối đa {{ titleMax }} ký tự)</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field>
+              <mat-label>Ghi chú</mat-label>
+              <textarea
+                matInput
+                formControlName="description"
+                [maxlength]="descriptionMax"
+                cdkTextareaAutosize
+                cdkAutosizeMinRows="4"
+                cdkAutosizeMaxRows="14"
+              ></textarea>
+              <mat-hint align="end">{{ form.controls.description.value.length }}/{{ descriptionMax }}</mat-hint>
+              @if (form.controls.description.hasError('server')) {
+                <mat-error>{{ form.controls.description.getError('server') }}</mat-error>
+              }
+            </mat-form-field>
+
+            <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm text-on-surface-variant">
+              <dt>Tạo lúc</dt>
+              <dd class="m-0">
+                <time [attr.datetime]="current.createdAt">{{ current.createdAt | date: 'dd/MM/yyyy HH:mm:ss' }}</time>
+              </dd>
+              <dt>Sửa lúc</dt>
+              <dd class="m-0">
+                <time [attr.datetime]="current.updatedAt">{{ current.updatedAt | date: 'dd/MM/yyyy HH:mm:ss' }}</time>
+              </dd>
+            </dl>
           </div>
 
-          <div class="field">
-            <label for="description">Ghi chú</label>
-            <textarea id="description" class="input" formControlName="description" [attr.maxlength]="descriptionMax"
-                      [class.invalid]="form.controls.description.invalid || serverErrors()['description']"></textarea>
-            <p class="hint">{{ form.controls.description.value.length }}/{{ descriptionMax }}</p>
-            @if (serverErrors()['description']; as message) {
-              <p class="error-text">{{ message }}</p>
-            }
-          </div>
-
-          <p class="muted small">
-            Tạo {{ current.createdAt | date: 'dd/MM/yyyy HH:mm:ss' }} · Sửa {{ current.updatedAt | date: 'dd/MM/yyyy HH:mm:ss' }} · Phiên bản {{ current.version }}
-          </p>
-
-          <div class="row">
-            <button type="submit" class="btn primary" [disabled]="saving() || form.pristine">
+          <div class="mt-6 flex flex-wrap items-center gap-2 border-t border-outline-variant bg-surface-low px-6 py-4">
+            <button matButton="filled" type="submit" [disabled]="saving() || form.pristine">
+              @if (saving()) {
+                <mat-spinner diameter="20" class="mr-2 inline-block! align-middle" />
+              } @else {
+                <mat-icon>save</mat-icon>
+              }
               {{ saving() ? 'Đang lưu...' : 'Lưu thay đổi' }}
             </button>
-            <button type="button" class="btn" [disabled]="busy()" (click)="toggle()">
+            <button matButton="outlined" type="button" [disabled]="busy()" (click)="toggle()">
+              <mat-icon>{{ current.completed ? 'replay' : 'task_alt' }}</mat-icon>
               {{ current.completed ? 'Mở lại' : 'Đánh dấu hoàn thành' }}
             </button>
-
-            @if (confirmingDelete()) {
-              <span class="row right">
-                <span class="small">Xóa todo này?</span>
-                <button type="button" class="btn danger solid small" [disabled]="busy()" (click)="confirmDelete()">Xóa</button>
-                <button type="button" class="btn small" (click)="cancelDelete()">Hủy</button>
-              </span>
-            } @else {
-              <button type="button" class="btn danger right" [disabled]="busy()" (click)="askDelete()">Xóa</button>
+            @if (form.dirty) {
+              <span class="text-xs text-on-surface-variant">Có thay đổi chưa lưu</span>
             }
+            <button matButton type="button" class="danger-button ml-auto" [disabled]="busy()" (click)="askDelete()">
+              <mat-icon>delete</mat-icon>
+              Xóa
+            </button>
           </div>
         </form>
       }

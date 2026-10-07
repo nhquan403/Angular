@@ -1,9 +1,28 @@
-import { Component, DestroyRef, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, DestroyRef, computed, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import {
+  NavigationCancel,
+  NavigationEnd,
+  NavigationError,
+  NavigationStart,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
+import { filter, map } from 'rxjs';
 import { AuthStore } from '../core/auth/auth-store';
 import { API_BASE_URL } from '../core/config';
-import { RealtimeService } from '../core/realtime/realtime-service';
+import { RealtimeService, RealtimeTransport } from '../core/realtime/realtime-service';
 import { RealtimeBadge } from './realtime-badge';
+import { ThemeToggle } from './theme-toggle';
 
 /**
  * Khung chung của mọi trang cần đăng nhập: thanh điều hướng + chỗ hiển thị trang con.
@@ -13,14 +32,58 @@ import { RealtimeBadge } from './realtime-badge';
  */
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, RealtimeBadge],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    MatToolbarModule,
+    MatButtonModule,
+    MatIconModule,
+    MatMenuModule,
+    MatDividerModule,
+    MatTooltipModule,
+    MatProgressBarModule,
+    RealtimeBadge,
+    ThemeToggle,
+  ],
   templateUrl: './shell.html',
-  styleUrl: './shell.css',
+  host: { class: 'flex min-h-dvh flex-col' },
+  styles: `
+    .toolbar {
+      --mat-toolbar-container-background-color: color-mix(in srgb, var(--mat-sys-surface) 88%, transparent);
+    }
+    .nav a.active {
+      color: var(--mat-sys-on-secondary-container);
+      background: var(--mat-sys-secondary-container);
+    }
+  `,
 })
 export class Shell {
   protected readonly auth = inject(AuthStore);
   protected readonly swaggerUrl = `${inject(API_BASE_URL)}/swagger-ui.html`;
-  private readonly realtime = inject(RealtimeService);
+  protected readonly year = new Date().getFullYear();
+  protected readonly realtime = inject(RealtimeService);
+  protected readonly transports: readonly { value: RealtimeTransport; label: string }[] = [
+    { value: 'sse', label: 'SSE' },
+    { value: 'ws', label: 'WebSocket' },
+  ];
+
+  /** Đang chuyển trang (tải lười mã trang, chạy guard): hiện thanh tiến trình mảnh ở trên cùng. */
+  protected readonly navigating = toSignal(
+    inject(Router).events.pipe(
+      filter(
+        (e) =>
+          e instanceof NavigationStart ||
+          e instanceof NavigationEnd ||
+          e instanceof NavigationCancel ||
+          e instanceof NavigationError,
+      ),
+      map((e) => e instanceof NavigationStart),
+    ),
+    { initialValue: false },
+  );
+
+  protected readonly initial = computed(() => this.auth.user()?.email.charAt(0).toUpperCase() ?? '?');
 
   constructor() {
     this.realtime.start();
