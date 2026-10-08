@@ -10,6 +10,9 @@ import { TodoSuggestion } from './assistant-models';
 import { AssistantService, MAX_INPUT } from './assistant-service';
 import { PageContext } from './page-context';
 
+/** Cách đáy dưới chừng này pixel vẫn coi là "đang ở đáy". */
+const NEAR_BOTTOM_PX = 80;
+
 const TOOL_LABEL: Readonly<Record<string, { running: string; done: string }>> = {
   list_todos: { running: 'Đang đọc danh sách todo...', done: 'Đã đọc danh sách todo' },
   get_todo: { running: 'Đang đọc chi tiết todo...', done: 'Đã đọc chi tiết todo' },
@@ -68,6 +71,16 @@ export class AssistantWidget {
 
   protected readonly maxInput = MAX_INPUT;
   protected readonly input = signal('');
+  /** Đang ở đáy khung tin nhắn. Kéo lên đọc tin cũ thì thôi tự cuộn theo chữ mới. */
+  protected readonly atBottom = signal(true);
+  /**
+   * Câu cho trình đọc màn hình: chỉ đọc câu trả lời khi đã gõ xong, không đọc từng chữ đang hiện
+   * (vùng aria-live đổi nội dung mỗi khung hình sẽ bị đọc lặp liên tục).
+   */
+  protected readonly announcement = computed(() => {
+    const last = this.assistant.messages().at(-1);
+    return last?.role === 'assistant' && last.status === 'done' ? last.text : '';
+  });
   private readonly scroller = viewChild<ElementRef<HTMLElement>>('scroller');
   private readonly composer = viewChild<ElementRef<HTMLTextAreaElement>>('composer');
   private readonly autosize = viewChild(CdkTextareaAutosize);
@@ -108,10 +121,11 @@ export class AssistantWidget {
       }
     });
     // Có tin mới hoặc chữ mới: cuộn xuống cuối, trừ khi người dùng đang kéo lên đọc tin cũ.
+    // Chữ mới hiện ra: bám theo đáy, trừ khi người dùng đã kéo lên đọc tin cũ.
     afterRenderEffect(() => {
       this.assistant.messages();
       const el = this.scroller()?.nativeElement;
-      if (el !== undefined && el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+      if (el !== undefined && this.atBottom()) {
         el.scrollTop = el.scrollHeight;
       }
     });
@@ -124,12 +138,22 @@ export class AssistantWidget {
     this.assistant.send(text);
     this.input.set('');
     // Vừa gửi thì luôn cuộn xuống, dù trước đó đang đọc tin cũ.
-    setTimeout(() => {
-      const el = this.scroller()?.nativeElement;
-      if (el !== undefined) {
-        el.scrollTop = el.scrollHeight;
-      }
-    });
+    this.atBottom.set(true);
+    setTimeout(() => this.scrollToBottom());
+  }
+
+  protected onScroll(): void {
+    const el = this.scroller()?.nativeElement;
+    if (el !== undefined) {
+      this.atBottom.set(el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX);
+    }
+  }
+
+  private scrollToBottom(): void {
+    const el = this.scroller()?.nativeElement;
+    if (el !== undefined) {
+      el.scrollTop = el.scrollHeight;
+    }
   }
 
   /** Enter để gửi, Shift+Enter để xuống dòng. Đang gõ tiếng Việt (IME) thì Enter là chốt chữ, không gửi. */

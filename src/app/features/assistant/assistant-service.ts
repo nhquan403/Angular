@@ -1,9 +1,31 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { ApiError } from '../../core/api-error';
 import { AssistantApi } from './assistant-api';
 import { AssistantEvent, AssistantTurn, ChatMessage } from './assistant-models';
 import { PageContext } from './page-context';
+import {
+  DEFAULT_TYPEWRITER,
+  FrameScheduler,
+  Typewriter,
+  TypewriterOptions,
+  animationFrameScheduler,
+} from './typewriter';
+
+/** Cách hiện chữ của trợ lý. Mặc định gõ dần; người dùng bật "giảm chuyển động" thì hiện ngay. Test có thể thay. */
+export const ASSISTANT_TYPING = new InjectionToken<{ scheduler: FrameScheduler; options: TypewriterOptions }>(
+  'ASSISTANT_TYPING',
+  {
+    providedIn: 'root',
+    factory: () => ({
+      scheduler: animationFrameScheduler,
+      options: {
+        ...DEFAULT_TYPEWRITER,
+        instant: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+      },
+    }),
+  },
+);
 
 /** Chỉ gửi chừng này tin gần nhất lên BE: đủ ngữ cảnh mà không phình request (BE cũng tự giới hạn). */
 export const MAX_HISTORY = 20;
@@ -18,6 +40,7 @@ export const MAX_INPUT = 2000;
 export class AssistantService {
   private readonly api = inject(AssistantApi);
   private readonly context = inject(PageContext);
+  private readonly typing = inject(ASSISTANT_TYPING);
 
   readonly open = signal(false);
   readonly messages = signal<readonly ChatMessage[]>([]);
@@ -27,6 +50,8 @@ export class AssistantService {
 
   private nextId = 1;
   private running: Subscription | null = null;
+  /** Bộ gõ chữ của câu trả lời đang chạy. Chữ, thẻ gợi ý và trạng thái "xong" đều đi qua nó để giữ đúng thứ tự. */
+  private typewriter: Typewriter | null = null;
 
   toggle(): void {
     this.setOpen(!this.open());
@@ -53,6 +78,12 @@ export class AssistantService {
     const reply = this.create('assistant', '', 'streaming');
     this.messages.update((list) => [...list, user, reply]);
 
+    this.typewriter?.dispose();
+    this.typewriter = new Typewriter(
+      (visible) => this.patch(reply.id, (m) => ({ ...m, text: visible })),
+      this.typing.scheduler,
+      this.typing.options,
+    );
     this.running = this.api.chat({ messages: trimHistory(history), context: this.context.snapshot() }).subscribe({
       next: (event) => this.apply(reply.id, event),
       error: (error: unknown) => this.fail(reply.id, describe(error)),
@@ -60,10 +91,11 @@ export class AssistantService {
     });
   }
 
-  /** Dừng câu trả lời đang chạy (hủy request); phần đã nhận được giữ lại. */
+  /** Dừng câu trả lời đang chạy (hủy request); phần đã nhận được hiện ra hết và giữ lại. */
   stop(): void {
     this.running?.unsubscribe();
     this.running = null;
+    this.typewriter?.flush();
     this.patchStreaming((m) => ({ ...m, status: 'stopped' }));
   }
 
@@ -80,22 +112,32 @@ export class AssistantService {
   }
 
   clear(): void {
-    this.stop();
+    this.running?.unsubscribe();
+    this.running = null;
+    this.typewriter?.dispose();
+    this.typewriter = null;
     this.messages.set([]);
   }
 
   // ---------- nội bộ ----------
 
   private apply(id: number, event: AssistantEvent): void {
+    const typewriter = this.typewriter;
+    if (typewriter === null) {
+      return;
+    }
     switch (event.type) {
       case 'delta':
-        this.patch(id, (m) => ({ ...m, text: m.text + event.text }));
+        typewriter.push(event.text);
         break;
       case 'tool':
-        this.patch(id, (m) => (m.tools.includes(event.name) ? m : { ...m, tools: [...m.tools, event.name] }));
+        typewriter.after(() =>
+          this.patch(id, (m) => (m.tools.includes(event.name) ? m : { ...m, tools: [...m.tools, event.name] })),
+        );
         break;
       case 'suggestion':
-        this.patch(id, (m) => ({ ...m, suggestions: [...m.suggestions, event.suggestion] }));
+        // Thẻ gợi ý hiện sau đoạn chữ đứng trước nó, không "nhảy" lên trước khi chữ gõ xong.
+        typewriter.after(() => this.patch(id, (m) => ({ ...m, suggestions: [...m.suggestions, event.suggestion] })));
         break;
       case 'error':
         this.fail(id, event.message);
@@ -106,17 +148,27 @@ export class AssistantService {
     }
   }
 
+  /** Hết dữ liệu: đánh dấu xong khi chữ đã gõ hết (vẫn đang gõ thì con trỏ nhấp nháy tiếp). */
   private finish(id: number): void {
     this.running = null;
-    this.patch(id, (m) => (m.status === 'streaming' ? { ...m, status: 'done' } : m));
-    if (!this.open()) {
-      this.unread.set(true);
+    const typewriter = this.typewriter;
+    const complete = () => {
+      this.patch(id, (m) => (m.status === 'streaming' ? { ...m, status: 'done' } : m));
+      if (!this.open()) {
+        this.unread.set(true);
+      }
+    };
+    if (typewriter === null) {
+      complete();
+    } else {
+      typewriter.after(complete);
     }
   }
 
   private fail(id: number, message: string): void {
     this.running?.unsubscribe();
     this.running = null;
+    this.typewriter?.flush();
     this.patch(id, (m) => ({ ...m, status: 'error', error: message }));
   }
 

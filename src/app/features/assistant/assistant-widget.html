@@ -35,7 +35,8 @@
     </header>
 
     <!-- Tin nhắn -->
-    <div #scroller class="flex-1 overflow-y-auto px-4 py-4" aria-live="polite" aria-relevant="additions text">
+    <p class="sr-only" aria-live="polite">{{ announcement() }}</p>
+    <div #scroller class="relative flex-1 overflow-y-auto px-4 py-4" (scroll)="onScroll()">
       @if (assistant.messages().length === 0) {
         <div class="flex flex-col items-center pt-6 text-center">
           <span

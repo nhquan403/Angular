@@ -4,8 +4,11 @@ import { vi } from 'vitest';
 import { ApiError } from '../../core/api-error';
 import { AssistantApi } from './assistant-api';
 import { AssistantContext, AssistantEvent, AssistantRequest } from './assistant-models';
-import { AssistantService, MAX_HISTORY, trimHistory } from './assistant-service';
+import { ASSISTANT_TYPING, AssistantService, MAX_HISTORY, trimHistory } from './assistant-service';
 import { PageContext } from './page-context';
+import { DEFAULT_TYPEWRITER, FrameScheduler } from './typewriter';
+
+const noFrames: FrameScheduler = { request: () => 0, cancel: () => undefined };
 
 const context: AssistantContext = { page: 'todo-detail', path: '/todos/7', query: null, todoId: 7, createDraft: null };
 
@@ -23,6 +26,11 @@ describe('AssistantService', () => {
       providers: [
         { provide: AssistantApi, useValue: { chat } },
         { provide: PageContext, useValue: { snapshot: () => context } },
+        // Các test ở đây kiểm tra luồng sự kiện, nên hiện chữ ngay; hiệu ứng gõ dần có test riêng bên dưới.
+        {
+          provide: ASSISTANT_TYPING,
+          useValue: { scheduler: noFrames, options: { ...DEFAULT_TYPEWRITER, instant: true } },
+        },
       ],
     });
     service = TestBed.inject(AssistantService);
@@ -111,5 +119,77 @@ describe('AssistantService', () => {
     expect(trimmed[0].role).toBe('user');
     expect(trimmed.at(-1)?.content).toBe(String(MAX_HISTORY));
     expect(trimmed.length).toBeLessThanOrEqual(MAX_HISTORY);
+  });
+});
+
+describe('AssistantService: hiện chữ dần như đang gõ', () => {
+  let service: AssistantService;
+  let stream: Subject<AssistantEvent>;
+  let pending: ((now: number) => void) | null;
+  let now: number;
+  const frame = (ms: number) => {
+    now += ms;
+    const run = pending;
+    pending = null;
+    run?.(now);
+  };
+
+  beforeEach(() => {
+    pending = null;
+    now = 0;
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AssistantApi, useValue: { chat: () => (stream = new Subject<AssistantEvent>()) } },
+        { provide: PageContext, useValue: { snapshot: () => context } },
+        {
+          provide: ASSISTANT_TYPING,
+          useValue: {
+            scheduler: { request: (cb: (n: number) => void) => ((pending = cb), 1), cancel: () => (pending = null) },
+            options: { charsPerSecond: 100, maxLagSeconds: 10, instant: false },
+          },
+        },
+      ],
+    });
+    service = TestBed.inject(AssistantService);
+  });
+
+  const reply = () => service.messages()[1];
+
+  it('BE gửi cả đoạn một lúc: chữ vẫn hiện dần; gợi ý và trạng thái "xong" chờ chữ gõ xong', () => {
+    service.send('Soạn todo');
+    stream.next({ type: 'delta', text: 'Đây là gợi ý của tôi.' }); // 21 ký tự
+    stream.next({ type: 'suggestion', suggestion: { title: 'Họp sprint', description: null } });
+    stream.next({ type: 'done' });
+    stream.complete();
+
+    expect(reply().text).toBe('');
+    frame(16);
+    frame(84); // 1,6 + 8,4 ký tự (phần lẻ được cộng dồn) = 10 ký tự
+    expect(reply().text).toBe('Đây là gợi');
+    expect(reply().suggestions).toEqual([]);
+    expect(reply().status).toBe('streaming');
+    expect(service.busy()).toBe(true);
+
+    frame(1000);
+    expect(reply().text).toBe('Đây là gợi ý của tôi.');
+    expect(reply().suggestions).toEqual([{ title: 'Họp sprint', description: null }]);
+    expect(reply().status).toBe('done');
+  });
+
+  it('Dừng giữa lúc gõ: hiện ngay hết phần đã nhận', () => {
+    service.send('Hỏi');
+    stream.next({ type: 'delta', text: 'Một câu trả lời khá dài' });
+    frame(16);
+    service.stop();
+    expect(reply()).toMatchObject({ text: 'Một câu trả lời khá dài', status: 'stopped' });
+    expect(pending).toBeNull();
+  });
+
+  it('Xóa cuộc trò chuyện giữa lúc gõ: không còn gõ tiếp vào tin đã xóa', () => {
+    service.send('Hỏi');
+    stream.next({ type: 'delta', text: 'abc' });
+    service.clear();
+    frame(1000);
+    expect(service.messages()).toEqual([]);
   });
 });

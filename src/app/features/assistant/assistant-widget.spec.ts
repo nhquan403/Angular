@@ -5,7 +5,9 @@ import { vi } from 'vitest';
 import { TodoDraftBridge } from '../todos/todo-draft-bridge';
 import { AssistantApi } from './assistant-api';
 import { AssistantEvent } from './assistant-models';
+import { ASSISTANT_TYPING } from './assistant-service';
 import { AssistantWidget } from './assistant-widget';
+import { DEFAULT_TYPEWRITER } from './typewriter';
 
 describe('AssistantWidget', () => {
   let stream: Subject<AssistantEvent>;
@@ -15,7 +17,17 @@ describe('AssistantWidget', () => {
     chat.mockClear();
     TestBed.configureTestingModule({
       imports: [AssistantWidget],
-      providers: [provideRouter([]), { provide: AssistantApi, useValue: { chat } }],
+      providers: [
+        provideRouter([]),
+        { provide: AssistantApi, useValue: { chat } },
+        {
+          provide: ASSISTANT_TYPING,
+          useValue: {
+            scheduler: { request: () => 0, cancel: () => undefined },
+            options: { ...DEFAULT_TYPEWRITER, instant: true },
+          },
+        },
+      ],
     });
   });
 
