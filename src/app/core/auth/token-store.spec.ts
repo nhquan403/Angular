@@ -19,13 +19,16 @@ describe('token-store', () => {
   });
 
   it('chuỗi thời gian hỏng thì dự phòng bằng claim exp của JWT', () => {
-    const stored = toStoredTokens({
-      tokenType: 'Bearer',
-      accessToken: fakeJwt({ exp: 2_000_000_000 }),
-      accessTokenExpiresAt: 'không phải ngày',
-      refreshToken: 'r',
-      refreshTokenExpiresAt: 'không phải ngày',
-    }, 1_000);
+    const stored = toStoredTokens(
+      {
+        tokenType: 'Bearer',
+        accessToken: fakeJwt({ exp: 2_000_000_000 }),
+        accessTokenExpiresAt: 'không phải ngày',
+        refreshToken: 'r',
+        refreshTokenExpiresAt: 'không phải ngày',
+      },
+      1_000,
+    );
     expect(stored.accessExpiresAt).toBe(2_000_000_000_000);
     expect(stored.refreshExpiresAt).toBe(1_000 + 60_000);
   });

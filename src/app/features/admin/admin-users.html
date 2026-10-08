@@ -1,59 +1,108 @@
-<div class="stack">
-  <h1>Quản lý người dùng</h1>
-  <p class="banner small">
-    Đổi role sẽ thu hồi mọi refresh token của người đó: họ phải đăng nhập lại để nhận role mới
-    (access token cũ vẫn mang role cũ tới khi hết hạn, tối đa 15 phút).
-  </p>
+<div class="flex flex-col gap-5">
+  <header>
+    <h1 class="text-2xl font-bold tracking-tight">Quản lý người dùng</h1>
+    <p class="mt-1 text-sm text-on-surface-variant">
+      @if (page(); as current) {
+        {{ current.totalElements }} người dùng
+      } @else {
+        Xem danh sách và phân quyền người dùng
+      }
+    </p>
+  </header>
+
+  <app-alert kind="info">
+    Đổi role sẽ thu hồi mọi refresh token của người đó: họ phải đăng nhập lại để nhận role mới (access token cũ vẫn mang
+    role cũ tới khi hết hạn, tối đa 15 phút).
+  </app-alert>
 
   @if (loadError(); as message) {
-    <p class="banner error" role="alert">{{ message }}</p>
-    <button type="button" class="btn" style="align-self: flex-start" (click)="reload()">Thử lại</button>
+    <app-alert kind="error" heading="Không tải được danh sách">
+      {{ message }}
+      <button alertActions matButton="outlined" type="button" (click)="reload()">
+        <mat-icon>refresh</mat-icon>
+        Thử lại
+      </button>
+    </app-alert>
   }
 
   @if (page(); as current) {
-    <section class="card" [attr.aria-busy]="loading()">
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr><th>ID</th><th>Email</th><th>Role</th><th>Ngày tạo</th></tr>
-          </thead>
-          <tbody>
-            @for (user of current.content; track user.id) {
-              <tr>
-                <td>{{ user.id }}</td>
-                <td>
-                  {{ user.email }}
-                  @if (isSelf(user)) {
-                    <span class="badge">bạn</span>
+    <section class="surface-card relative" [attr.aria-busy]="loading()">
+      @if (loading()) {
+        <mat-progress-bar class="absolute! inset-x-0 top-0 z-10" mode="indeterminate" />
+      }
+      <div class="overflow-x-auto">
+        <table mat-table [dataSource]="current.content" class="min-w-160">
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef class="w-20">ID</th>
+            <td mat-cell *matCellDef="let user" class="text-on-surface-variant">#{{ user.id }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="email">
+            <th mat-header-cell *matHeaderCellDef>Email</th>
+            <td mat-cell *matCellDef="let user">
+              <div class="flex items-center gap-3">
+                <span
+                  class="grid size-8 flex-none place-items-center rounded-full bg-tertiary-container text-sm font-medium text-on-tertiary-container"
+                  aria-hidden="true"
+                  >{{ user.email.charAt(0).toUpperCase() }}</span
+                >
+                <span class="truncate">{{ user.email }}</span>
+                @if (isSelf(user)) {
+                  <span class="pill primary">Bạn</span>
+                }
+              </div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="role">
+            <th mat-header-cell *matHeaderCellDef class="w-44">Role</th>
+            <td mat-cell *matCellDef="let user">
+              <mat-form-field
+                class="w-36 py-1 [--mat-form-field-container-height:40px] [--mat-form-field-container-vertical-padding:8px]"
+                [matTooltip]="isSelf(user) ? 'Không thể tự đổi role của chính mình' : ''"
+              >
+                <mat-select
+                  [value]="user.role"
+                  [disabled]="isSelf(user) || changing() === user.id"
+                  [aria-label]="'Role của ' + user.email"
+                  (selectionChange)="changeRole(user, $event)"
+                >
+                  @for (role of roles; track role) {
+                    <mat-option [value]="role">{{ role }}</mat-option>
                   }
-                </td>
-                <td>
-                  <label class="sr-only" [attr.for]="'role-' + user.id">Role của {{ user.email }}</label>
-                  <select [id]="'role-' + user.id" class="input" [value]="user.role"
-                          [disabled]="isSelf(user) || changing() === user.id"
-                          [title]="isSelf(user) ? 'Không thể tự đổi role của chính mình' : ''"
-                          (change)="changeRole(user, $event)">
-                    @for (role of roles; track role) {
-                      <option [value]="role" [selected]="role === user.role">{{ role }}</option>
-                    }
-                  </select>
-                </td>
-                <td>{{ user.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
-              </tr>
-            }
-          </tbody>
+                </mat-select>
+              </mat-form-field>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="createdAt">
+            <th mat-header-cell *matHeaderCellDef class="w-44">Ngày tạo</th>
+            <td mat-cell *matCellDef="let user" class="text-on-surface-variant">
+              {{ user.createdAt | date: 'dd/MM/yyyy HH:mm' }}
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columns"></tr>
+          <tr mat-row *matRowDef="let row; columns: columns"></tr>
         </table>
       </div>
 
-      <div class="row between" style="margin-top: .75rem">
-        <span class="muted small">{{ current.totalElements }} người dùng · trang {{ current.page + 1 }}/{{ current.totalPages }}</span>
-        <div class="row">
-          <button type="button" class="btn small" [disabled]="current.page === 0" (click)="goTo(current.page - 1)">← Trước</button>
-          <button type="button" class="btn small" [disabled]="current.last" (click)="goTo(current.page + 1)">Sau →</button>
-        </div>
-      </div>
+      <mat-paginator
+        class="border-t border-outline-variant"
+        [length]="current.totalElements"
+        [pageIndex]="current.page"
+        [pageSize]="pageSize"
+        [hidePageSize]="true"
+        [showFirstLastButtons]="true"
+        (page)="onPage($event)"
+        aria-label="Chọn trang"
+      />
     </section>
   } @else if (loading()) {
-    <p class="muted">Đang tải...</p>
+    <div class="surface-card flex flex-col gap-3 p-4" aria-busy="true" aria-label="Đang tải">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="h-10 animate-pulse rounded bg-surface-high"></span>
+      }
+    </div>
   }
 </div>

@@ -1,6 +1,8 @@
 # todo-web
 
-Giao diện Angular 22 cho [todo-api](../todo-api) (Spring Boot, kiến trúc Hexagonal). App này dùng **toàn bộ** những gì BE cung cấp:
+Giao diện Angular 22 cho [todo-api](../todo-api) (Spring Boot, kiến trúc Hexagonal). App này dùng **toàn bộ** những gì BE cung cấp.
+
+**Giao diện:** [Angular Material](https://material.angular.dev) (Material Design 3) cho component (form, dialog, bảng, menu, snackbar, phân trang) và [Tailwind CSS v4](https://tailwindcss.com) cho bố cục, khoảng cách, chữ. Có chế độ sáng / tối / theo hệ thống, chạy tốt trên điện thoại.
 
 | Tính năng của BE | Nơi dùng trong app |
 |---|---|
@@ -18,11 +20,12 @@ Giao diện Angular 22 cho [todo-api](../todo-api) (Spring Boot, kiến trúc He
 | Giới hạn 5 kết nối mỗi người (429 / close 1013) | `RealtimeService` báo lỗi rõ ràng |
 | Sự kiện không được phát lại | `resync$`: kết nối lại xong thì tải lại danh sách |
 | CORS, kiểm tra Origin của WebSocket | BE đã thêm `http://localhost:4200` vào `app.cors.allowed-origins` |
-| Swagger UI | Link ở chân trang |
+| Swagger UI | Link ở chân trang và menu tài khoản |
+| Trợ lý AI (cần BE thêm `POST /api/assistant/chat`) | Nút ✦ góc phải dưới, `features/assistant/` (xem [docs/assistant-backend.md](docs/assistant-backend.md)) |
 
 ## Chạy
 
-Cần Node.js `^22.22.3`, `^24.15` hoặc mới hơn (yêu cầu của Angular CLI 22) và BE đang chạy ở cổng 8080.
+Cần Node.js `^22.22.3`, `^24.15` hoặc `>=26` (yêu cầu của Angular CLI 22) và BE đang chạy ở cổng 8080.
 
 ```bash
 # 1. BE (một terminal), profile dev có sẵn ADMIN admin@example.com / Admin#12345
@@ -35,10 +38,18 @@ npm install
 npm start            # http://localhost:4200
 ```
 
-Đổi địa chỉ BE: sửa `API_BASE_URL` trong `src/app/app.config.ts` (mặc định `http://localhost:8080`, WebSocket tự suy ra `ws://localhost:8080`).
+Đổi địa chỉ BE: sửa `apiBaseUrl` trong `src/environments/environment.ts` (bản production) và `environment.development.ts` (bản `npm start`). Mặc định `http://localhost:8080`, WebSocket tự suy ra `ws://localhost:8080`.
 Domain frontend khác 4200 thì thêm vào `app.cors.allowed-origins` của BE, nếu không trình duyệt chặn cả API lẫn WebSocket.
 
-Lệnh khác: `npm test` (unit test, vitest), `npm run build` (bản production ở `dist/`).
+| Lệnh | Việc |
+|---|---|
+| `npm start` | chạy dev ở http://localhost:4200 |
+| `npm run build` | bản production ở `dist/todo-web/browser` |
+| `npm test` | unit test (Vitest) |
+| `npm run lint` | ESLint (angular-eslint, gồm luật accessibility cho template) |
+| `npm run format` / `format:check` | Prettier (tự sắp xếp class Tailwind) |
+
+Docker: `docker build -t todo-web . && docker run -p 8080:80 todo-web` (nginx, có fallback cho SPA và cache dài hạn cho file đã băm tên).
 
 ### Thử tính năng thời gian thực
 
@@ -53,22 +64,33 @@ Lệnh khác: `npm test` (unit test, vitest), `npm run build` (bản production 
 
 ```
 src/app/
-├── app.ts, app.config.ts, app.routes.ts   gốc, cấu hình (HttpClient + interceptor), bản đồ đường dẫn
+├── app.ts, app.config.ts, app.routes.ts   gốc, cấu hình (HttpClient, router, locale vi, Material), bản đồ đường dẫn
 ├── core/                                  những thứ dùng chung cho cả app, không thuộc màn hình nào
-│   ├── config.ts                          API_BASE_URL
+│   ├── config.ts                          API_BASE_URL (lấy từ src/environments)
 │   ├── models.ts                          kiểu dữ liệu khớp DTO của BE
 │   ├── api-error.ts                       đổi lỗi HTTP thành ApiError (đọc ProblemDetail)
+│   ├── error-handler.ts                   bắt lỗi chưa xử lý, ghi console và báo nhẹ cho người dùng
 │   ├── auth/  token-store, auth-api, auth-store, guards
 │   ├── http/  interceptors                gắn Bearer, tự refresh khi 401, đổi lỗi
 │   ├── realtime/  realtime-service, todo-event
-│   └── notify/  toast-service, toast-host
-├── layout/  shell, realtime-badge         thanh trên cùng, trạng thái kết nối
+│   ├── notify/  toast-service             thông báo nổi (MatSnackBar)
+│   ├── dialog/  confirm-dialog            hộp thoại xác nhận dùng chung (MatDialog)
+│   ├── theme/  theme-service              sáng / tối / theo hệ thống
+│   └── ui/  app-title-strategy, paginator-intl   tiêu đề tab "Trang · Todo", chữ tiếng Việt cho phân trang
+├── shared/  alert, empty-state, form-errors      banner, màn hình trống, gắn lỗi BE vào đúng ô form
+├── layout/  shell, realtime-badge, theme-toggle  thanh trên cùng, trạng thái kết nối, menu tài khoản
 └── features/
-    ├── auth/  login, register
-    ├── todos/  todo-api, todo-query, todo-list, todo-detail
+    ├── auth/  auth-layout, login, register
+    ├── todos/  todo-api, todo-query, todo-list, todo-detail, unsaved-changes-guard, todo-draft-bridge
     ├── realtime/  activity-feed
+    ├── assistant/  assistant-widget, assistant-service, assistant-api, sse-parser, page-context
     └── admin/  admin-users
+src/environments/   apiBaseUrl cho dev và production
+src/styles.scss     theme Angular Material (M3) và màu bổ sung
+src/tailwind.css    Tailwind, ánh xạ màu Tailwind sang token Material (--mat-sys-*)
 ```
+
+**Material + Tailwind sống chung thế nào.** Tailwind trỏ màu vào token của Material (`bg-primary`, `text-on-surface-variant`, `border-outline-variant`...), nên một lần đổi `color-scheme` trên `<html>` là cả hai cùng chuyển sáng/tối. Mọi lớp Tailwind nằm trong `@layer`, còn CSS của Material thì không, nên preflight của Tailwind không đè được component Material. Muốn sửa component Material thì dùng mixin `mat.*-overrides` (xem `styles.scss`), không dùng `::ng-deep`.
 
 Quy ước của Angular mới: file không có hậu tố `.component` (`todo-list.ts` chứa class `TodoList`), component độc lập (standalone, không có NgModule), trạng thái dùng **signal**, không dùng zone.js (zoneless), control flow `@if` / `@for` / `@switch` thay cho `*ngIf` / `*ngFor`.
 
@@ -86,13 +108,21 @@ Refresh token của BE xoay vòng: mỗi token chỉ dùng được một lần,
 **3. Trạng thái nằm trên URL (`todo-query.ts`).**
 `/todos?completed=false&page=2&sortBy=title&direction=asc`: F5, nút Back, gửi link đều đúng. Giá trị lạ trên URL bị đưa về mặc định vì BE trả 400 khi tham số sai.
 
-**4. Guard chỉ để trải nghiệm tốt hơn.**
+**4. Không mất dữ liệu đang gõ (`todo-detail.ts`, `unsaved-changes-guard.ts`).**
+Form còn thay đổi chưa lưu thì rời trang trong app sẽ hiện hộp thoại hỏi lại, đóng tab hay F5 thì trình duyệt hỏi. Lỗi BE trả theo từng ô (`errors` của ProblemDetail) được gắn thẳng vào FormControl (`shared/form-errors.ts`) để hiện ngay dưới ô đó.
+
+**5. Trợ lý AI (`features/assistant/`).**
+Nút ✦ ở góc phải dưới mở khung chat. Trợ lý (Claude, chạy ở BE) đọc todo của người dùng bằng tool và biết trang đang mở (bộ lọc, todo đang xem, nội dung đang gõ trong form tạo). Khi được nhờ soạn todo, trợ lý trả về thẻ gợi ý; bấm "Điền vào form tạo" thì form "Thêm todo" được điền sẵn (đang ở trang khác thì tự chuyển về danh sách), người dùng vẫn tự bấm "Thêm". Câu trả lời stream qua `POST` + `text/event-stream` bằng HttpClient (`reportProgress`), nên vẫn được gắn Bearer và tự làm mới token như mọi request. Chữ hiện dần như đang gõ (`features/assistant/typewriter.ts`), dù BE gửi từng token hay cả đoạn một lần: hàng đợi càng dài thì gõ càng nhanh, không trễ quá 0,8 giây; người dùng bật "giảm chuyển động" thì hiện ngay. Nội dung từ AI chỉ hiển thị dạng văn bản thuần. Hợp đồng API và code mẫu Spring: [docs/assistant-backend.md](docs/assistant-backend.md). Tắt bằng `assistantEnabled: false` trong `src/environments/`.
+
+**6. Guard chỉ để trải nghiệm tốt hơn.**
 `authGuard`, `adminGuard` tránh cho người dùng thấy trang rồi mới bị 403. Chúng **không phải** bảo mật: JavaScript trong trình duyệt ai cũng sửa được. Quyền thật luôn do BE kiểm tra ở mỗi request.
 
 ## Kiểm tra đã làm
 
-- `npm test`: 42 unit test (interceptor và refresh token, realtime kể cả backoff, parse sự kiện, parse URL, lỗi API, token).
-- Chạy bản build thật trong Chromium với **một BE giả** viết theo đúng controller và DTO của `todo-api` (không phải Spring thật): 29 bước gồm đăng ký, đăng nhập, phân trang, SSE và WebSocket giữa hai tab, ngắt rồi nối lại, hai tab cùng bị 401 mà chỉ refresh một lần, xung đột version, ADMIN và đổi role, đăng xuất đồng bộ giữa các tab.
+- `npm test`: 105 unit test (trợ lý AI: hiệu ứng gõ chữ, đọc SSE theo từng mẩu, stream qua HttpClient, ghép câu trả lời, dừng / thử lại, ngữ cảnh trang, điền form từ gợi ý, khung chat; interceptor và refresh token, realtime kể cả backoff, parse sự kiện, parse URL, lỗi API, token, gắn lỗi BE vào form, thông báo, giao diện sáng/tối, guard thay đổi chưa lưu, bắt lỗi toàn cục, form đăng nhập).
+- `npm run lint`, `npm run build` sạch.
+- Chạy bản build thật trong Chromium với **một BE giả** viết theo đúng controller và DTO của `todo-api` (không phải Spring thật): 18 bước gồm chuyển về đăng nhập kèm `returnUrl`, lỗi từng ô, thêm / hoàn thành / xóa (qua hộp thoại) todo, lọc và phân trang trên URL, SSE giữa hai tab, xung đột version, hỏi khi rời trang chưa lưu, ADMIN đổi role, chế độ tối, bố cục điện thoại 390px không tràn ngang, đăng xuất đồng bộ giữa các tab, trang 404. Thêm 10 bước cho trợ lý AI với một BE giả trả lời theo kịch bản: mở khung chat, câu trả lời stream kèm ngữ cảnh trang, gợi ý điền vào form (không tự tạo), gửi kèm nội dung đang gõ, điền từ trang chi tiết thì tự về danh sách, dừng giữa chừng, lỗi giữa stream và Thử lại, Esc, chế độ tối và điện thoại.
+- Phần BE của trợ lý (gọi Claude thật) chưa được viết trong `todo-api`; code mẫu trong `docs/assistant-backend.md` chưa được biên dịch.
 - Chưa chạy với BE Spring thật. Nếu có chỗ lệch hợp đồng (ví dụ định dạng thời gian, tên trường) thì sẽ lộ ra khi chạy `mvn spring-boot:run` rồi `npm start`.
 
 ## Giới hạn đã biết
@@ -101,3 +131,5 @@ Refresh token của BE xoay vòng: mỗi token chỉ dùng được một lần,
 - Mỗi tab mở một kết nối thời gian thực riêng, BE giới hạn 5 mỗi người. Mở tab thứ 6 sẽ bị từ chối (thanh trên cùng báo lý do). Muốn dùng chung một kết nối giữa các tab cần `SharedWorker` hoặc `BroadcastChannel`.
 - Đổi role: người bị đổi phải đăng nhập lại để nhận role mới (BE thu hồi refresh token, access token cũ còn sống tối đa 15 phút).
 - Chưa có i18n (giao diện chỉ tiếng Việt) và chưa có phân quyền theo từng nút ngoài ADMIN.
+- Font Roboto và bộ biểu tượng Material Symbols nạp từ Google Fonts (`src/index.html`). Môi trường không ra được Internet thì cần tự host hai font này.
+- `apiBaseUrl` cố định lúc build. Muốn một image Docker chạy được với nhiều BE khác nhau thì cần thêm cấu hình lúc chạy (ví dụ `config.json` do nginx phục vụ).

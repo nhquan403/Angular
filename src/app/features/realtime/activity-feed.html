@@ -1,42 +1,56 @@
-<section class="card stack" aria-labelledby="feed-title">
-  <div class="row between">
-    <h2 id="feed-title">Hoạt động trực tiếp</h2>
+<section class="surface-card flex flex-col" aria-labelledby="feed-title">
+  <div class="flex items-center gap-2 border-b border-outline-variant px-4 py-3">
+    <mat-icon class="text-primary" aria-hidden="true">sensors</mat-icon>
+    <h2 id="feed-title" class="text-base font-medium">Hoạt động trực tiếp</h2>
     @if (realtime.feed().length > 0) {
-      <button type="button" class="btn link small" (click)="realtime.clearFeed()">Xóa</button>
+      <span class="pill">{{ realtime.feed().length }}</span>
+      <button matButton type="button" class="ml-auto h-8!" (click)="realtime.clearFeed()">Xóa</button>
     }
   </div>
 
   @if (realtime.lastError(); as message) {
-    <p class="banner warn small" role="status">{{ message }}</p>
+    <div class="px-4 pt-3">
+      <app-alert kind="warn">{{ message }}</app-alert>
+    </div>
   }
 
   @if (realtime.feed().length === 0) {
-    <p class="muted small">
-      Chưa có sự kiện nào. Hãy thêm, sửa hoặc xóa một todo (ở tab này hoặc tab khác) để thấy sự kiện đến theo thời gian thực.
-    </p>
+    <app-empty-state
+      icon="notifications_active"
+      title="Chưa có sự kiện"
+      message="Thêm, sửa hoặc xóa một todo (ở tab này hoặc tab khác) để thấy sự kiện đến theo thời gian thực."
+    />
   } @else {
-    <ul class="list">
+    <ol class="m-0 max-h-[60dvh] list-none overflow-y-auto p-2">
       @for (item of realtime.feed(); track item.id) {
-        <li class="row">
-          <span aria-hidden="true">{{ icon[item.event.type] }}</span>
-          <div class="grow">
-            <div class="small">
-              <strong>{{ label[item.event.type] }}</strong>
+        <li class="flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-surface-low">
+          <span
+            class="grid size-8 flex-none place-items-center rounded-full"
+            [class]="meta[item.event.type].tone"
+            aria-hidden="true"
+          >
+            <mat-icon class="size-4.5! text-lg/4.5!">{{ meta[item.event.type].icon }}</mat-icon>
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 text-xs">
+              <strong class="font-medium">{{ meta[item.event.type].label }}</strong>
               @if (auth.isAdmin() && item.event.ownerId !== auth.user()?.id) {
-                <span class="badge">user #{{ item.event.ownerId }}</span>
+                <span class="pill tertiary">user #{{ item.event.ownerId }}</span>
               }
+              <time class="ml-auto text-on-surface-variant" [attr.datetime]="item.event.occurredAt">{{
+                item.receivedAt | date: 'HH:mm:ss'
+              }}</time>
             </div>
-            <div class="truncate">
+            <div class="truncate text-sm">
               @if (item.event.type === 'DELETED') {
-                {{ item.event.title }}
+                <span class="text-on-surface-variant line-through">{{ item.event.title }}</span>
               } @else {
                 <a [routerLink]="['/todos', item.event.todoId]">{{ item.event.title }}</a>
               }
             </div>
           </div>
-          <time class="muted small" [attr.datetime]="item.event.occurredAt">{{ item.receivedAt | date: 'HH:mm:ss' }}</time>
         </li>
       }
-    </ul>
+    </ol>
   }
 </section>

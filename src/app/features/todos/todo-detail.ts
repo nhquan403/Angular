@@ -1,14 +1,26 @@
+import { TextFieldModule } from '@angular/cdk/text-field';
 import { DatePipe } from '@angular/common';
 import { Component, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, catchError, debounceTime, filter, map, of, switchMap } from 'rxjs';
 import { ApiError } from '../../core/api-error';
 import { DESCRIPTION_MAX, TITLE_MAX, Todo } from '../../core/models';
+import { ConfirmService } from '../../core/dialog/confirm-dialog';
 import { ToastService } from '../../core/notify/toast-service';
 import { RealtimeService } from '../../core/realtime/realtime-service';
+import { Alert } from '../../shared/alert';
+import { EmptyState } from '../../shared/empty-state';
+import { applyServerErrors } from '../../shared/form-errors';
 import { TodoApi } from './todo-api';
+import { HasUnsavedChanges } from './unsaved-changes-guard';
 import { notBlank } from './validators';
 
 type DetailState = 'loading' | 'ready' | 'notFound' | 'deleted' | 'error';
@@ -24,10 +36,24 @@ type LoadResult = { ok: true; todo: Todo } | { ok: false; error: unknown };
  */
 @Component({
   selector: 'app-todo-detail',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DatePipe,
+    TextFieldModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatProgressSpinnerModule,
+    MatTooltipModule,
+    Alert,
+    EmptyState,
+  ],
   templateUrl: './todo-detail.html',
+  host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
 })
-export class TodoDetail {
+export class TodoDetail implements HasUnsavedChanges {
   /** Tham số :id trên URL (nhờ withComponentInputBinding). Luôn là chuỗi. */
   readonly id = input.required<string>();
 
@@ -35,6 +61,7 @@ export class TodoDetail {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly realtime = inject(RealtimeService);
+  private readonly confirm = inject(ConfirmService);
   private readonly fb = inject(FormBuilder).nonNullable;
 
   protected readonly titleMax = TITLE_MAX;
@@ -50,8 +77,6 @@ export class TodoDetail {
   });
   protected readonly saving = signal(false);
   protected readonly busy = signal(false);
-  protected readonly confirmingDelete = signal(false);
-  protected readonly serverErrors = signal<Readonly<Record<string, string>>>({});
   /** Bản mới hơn trên server mà người dùng chưa chấp nhận (do 409 hoặc do sự kiện thời gian thực). */
   protected readonly remoteVersion = signal<Todo | null>(null);
 
@@ -76,6 +101,18 @@ export class TodoDetail {
 
     // Vừa kết nối lại: có thể đã lỡ sự kiện, kiểm tra lại bản trên server.
     this.realtime.resync$.pipe(takeUntilDestroyed()).subscribe(() => this.onRemoteEvent(false));
+  }
+
+  /** Dùng bởi unsavedChangesGuard: còn thay đổi chưa lưu thì hỏi trước khi rời trang. */
+  hasUnsavedChanges(): boolean {
+    return this.state() === 'ready' && this.form.dirty && !this.deletingSelf;
+  }
+
+  /** Đóng tab / tải lại trang khi còn thay đổi chưa lưu: trình duyệt hỏi xác nhận. */
+  protected onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.hasUnsavedChanges()) {
+      event.preventDefault();
+    }
   }
 
   // ---------- tải ----------
@@ -183,7 +220,6 @@ export class TodoDetail {
     }
     const { title, description } = this.form.getRawValue();
     this.saving.set(true);
-    this.serverErrors.set({});
     this.api.update(current.id, title.trim(), description.trim() || null, current.version).subscribe({
       next: (updated) => {
         this.saving.set(false);
@@ -200,9 +236,7 @@ export class TodoDetail {
               this.remoteVersion.set(result.todo);
             }
           });
-        } else if (error instanceof ApiError && Object.keys(error.fieldErrors).length > 0) {
-          this.serverErrors.set(error.fieldErrors);
-        } else {
+        } else if (!(error instanceof ApiError) || !applyServerErrors(this.form, error.fieldErrors)) {
           this.toast.error(error);
         }
       },
@@ -229,19 +263,24 @@ export class TodoDetail {
     });
   }
 
-  protected askDelete(): void {
-    this.confirmingDelete.set(true);
-  }
-
-  protected cancelDelete(): void {
-    this.confirmingDelete.set(false);
-  }
-
-  protected confirmDelete(): void {
+  protected async askDelete(): Promise<void> {
     const current = this.todo();
     if (current === null) {
       return;
     }
+    const confirmed = await this.confirm.confirm({
+      title: 'Xóa todo?',
+      message: `"${current.title}" sẽ bị xóa vĩnh viễn và không khôi phục được.`,
+      confirmText: 'Xóa',
+      danger: true,
+      icon: 'delete',
+    });
+    if (confirmed) {
+      this.delete(current);
+    }
+  }
+
+  private delete(current: Todo): void {
     this.busy.set(true);
     this.deletingSelf = true;
     this.api.delete(current.id).subscribe({
@@ -252,7 +291,6 @@ export class TodoDetail {
       error: (error: unknown) => {
         this.busy.set(false);
         this.deletingSelf = false;
-        this.confirmingDelete.set(false);
         this.toast.error(error);
       },
     });

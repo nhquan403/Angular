@@ -178,10 +178,12 @@ describe('interceptors', () => {
     let caught: unknown;
     http.post(LIST, {}).subscribe({ error: (e: unknown) => (caught = e) });
     await tick();
-    backend.expectOne(LIST).flush(
-      { detail: 'Validation failed', errors: { title: 'title must not be blank' } },
-      { status: 400, statusText: 'Bad Request' },
-    );
+    backend
+      .expectOne(LIST)
+      .flush(
+        { detail: 'Validation failed', errors: { title: 'title must not be blank' } },
+        { status: 400, statusText: 'Bad Request' },
+      );
     expect(caught).toBeInstanceOf(ApiError);
     expect((caught as ApiError).fieldErrors).toEqual({ title: 'title must not be blank' });
   });

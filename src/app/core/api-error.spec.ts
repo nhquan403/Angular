@@ -35,4 +35,14 @@ describe('toApiError', () => {
     expect(toApiError(new HttpErrorResponse({ status: 403, error: 'Forbidden' })).message).toContain('quyền');
     expect(toApiError(new HttpErrorResponse({ status: 418 })).message).toContain('418');
   });
+
+  it('body lỗi là chuỗi JSON (request responseType text) vẫn đọc được ProblemDetail', () => {
+    const error = toApiError(
+      new HttpErrorResponse({ status: 429, error: JSON.stringify({ detail: 'Bạn hỏi quá nhanh, chờ chút nhé' }) }),
+    );
+    expect(error.message).toBe('Bạn hỏi quá nhanh, chờ chút nhé');
+    expect(toApiError(new HttpErrorResponse({ status: 404, error: 'not json' })).message).toBe(
+      'Không tìm thấy dữ liệu',
+    );
+  });
 });

@@ -15,9 +15,7 @@ import { API_BASE_URL } from '../config';
 /** Đổi HttpErrorResponse thành ApiError (đọc ProblemDetail của BE). */
 export const errorInterceptor: HttpInterceptorFn = (req, next) =>
   next(req).pipe(
-    catchError((error: unknown) =>
-      throwError(() => (error instanceof HttpErrorResponse ? toApiError(error) : error)),
-    ),
+    catchError((error: unknown) => throwError(() => (error instanceof HttpErrorResponse ? toApiError(error) : error))),
   );
 
 /**
@@ -39,9 +37,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       next(withBearer(req, token)).pipe(
         catchError((error: unknown) => {
           if (error instanceof HttpErrorResponse && error.status === 401 && token !== null) {
-            return from(auth.refresh(token)).pipe(
-              switchMap((fresh) => next(withBearer(req, fresh.accessToken))),
-            );
+            return from(auth.refresh(token)).pipe(switchMap((fresh) => next(withBearer(req, fresh.accessToken))));
           }
           return throwError(() => error);
         }),

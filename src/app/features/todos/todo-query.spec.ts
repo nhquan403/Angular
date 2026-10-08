@@ -24,10 +24,15 @@ describe('todo-query', () => {
 
   it('chỉ ghi lên URL những giá trị khác mặc định', () => {
     expect(toQueryParams(DEFAULT_QUERY)).toEqual({
-      completed: null, page: null, size: null, sortBy: null, direction: null,
+      completed: null,
+      page: null,
+      size: null,
+      sortBy: null,
+      direction: null,
     });
     expect(toQueryParams({ ...DEFAULT_QUERY, completed: true, page: 2 })).toMatchObject({
-      completed: 'true', page: '2',
+      completed: 'true',
+      page: '2',
     });
   });
 });

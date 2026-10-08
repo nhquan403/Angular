@@ -1,25 +1,29 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiError, SessionExpiredError } from '../api-error';
 
 export type ToastKind = 'info' | 'success' | 'error';
 
-export interface Toast {
-  id: number;
-  kind: ToastKind;
-  message: string;
-}
+const PANEL_CLASS: Readonly<Record<ToastKind, string>> = {
+  info: 'toast-info',
+  success: 'toast-success',
+  error: 'toast-error',
+};
 
-/** Thông báo nổi ngắn ở góc màn hình. Tự biến mất sau vài giây. */
+/** Thông báo nổi ngắn ở góc màn hình (Material snackbar). Tự biến mất sau vài giây. */
 @Injectable({ providedIn: 'root' })
 export class ToastService {
-  private nextId = 1;
-  private readonly list = signal<readonly Toast[]>([]);
-  readonly toasts = this.list.asReadonly();
+  private readonly snackBar = inject(MatSnackBar);
 
   show(kind: ToastKind, message: string, durationMs = kind === 'error' ? 7000 : 4000): void {
-    const id = this.nextId++;
-    this.list.update((items) => [...items.slice(-4), { id, kind, message }]);
-    setTimeout(() => this.dismiss(id), durationMs);
+    this.snackBar.open(message, 'Đóng', {
+      duration: durationMs,
+      panelClass: PANEL_CLASS[kind],
+      horizontalPosition: 'end',
+      verticalPosition: 'bottom',
+      // Lỗi cần được trình đọc màn hình đọc ngay.
+      politeness: kind === 'error' ? 'assertive' : 'polite',
+    });
   }
 
   /** Hiện lỗi bất kỳ. Phiên hết hạn thì bỏ qua vì trang đăng nhập đã nói rõ lý do. */
@@ -27,15 +31,14 @@ export class ToastService {
     if (error instanceof SessionExpiredError) {
       return;
     }
-    if (error instanceof ApiError) {
-      const suffix = error.requestId === null ? '' : ` (mã yêu cầu: ${error.requestId})`;
-      this.show('error', error.message + suffix);
-      return;
-    }
-    this.show('error', 'Đã có lỗi không mong muốn');
+    this.show('error', errorMessage(error));
   }
+}
 
-  dismiss(id: number): void {
-    this.list.update((items) => items.filter((toast) => toast.id !== id));
+/** Câu thông báo cho người dùng, kèm mã yêu cầu (nếu có) để tra log phía server. */
+export function errorMessage(error: unknown, fallback = 'Đã có lỗi không mong muốn'): string {
+  if (error instanceof ApiError) {
+    return error.requestId === null ? error.message : `${error.message} (mã yêu cầu: ${error.requestId})`;
   }
+  return fallback;
 }

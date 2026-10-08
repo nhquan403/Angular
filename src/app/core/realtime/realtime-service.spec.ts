@@ -50,7 +50,15 @@ class FakeWebSocket {
 }
 
 const event = (overrides: Partial<TodoEvent> = {}): string =>
-  JSON.stringify({ type: 'CREATED', todoId: 1, ownerId: 2, title: 'A', completed: false, occurredAt: '2026-10-07T00:00:00Z', ...overrides });
+  JSON.stringify({
+    type: 'CREATED',
+    todoId: 1,
+    ownerId: 2,
+    title: 'A',
+    completed: false,
+    occurredAt: '2026-10-07T00:00:00Z',
+    ...overrides,
+  });
 
 describe('RealtimeService', () => {
   let service: RealtimeService;
